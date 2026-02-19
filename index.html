@@ -356,6 +356,9 @@
     .timeline-chart-section {
       border-top: 1px solid rgba(255,255,255,0.06);
     }
+    .timeline-chart-section canvas {
+      display: block;
+    }
     .timeline-chart-label {
       position: -webkit-sticky;
       position: sticky;
@@ -730,6 +733,8 @@
       if (windChart) { windChart.destroy(); windChart = null; }
 
       const chartHeight = 120;
+      canvas.width = totalWidth;
+      canvas.height = chartHeight;
       canvas.style.width = totalWidth + 'px';
       canvas.style.height = chartHeight + 'px';
 
@@ -766,10 +771,12 @@
               min: 0,
               max: totalWidth,
               display: false,
+              afterFit: (axis) => { axis.height = 0; },
             },
             y: {
               display: false,
               beginAtZero: true,
+              afterFit: (axis) => { axis.width = 0; },
             }
           }
         }
@@ -841,6 +848,8 @@
       if (tideChart) { tideChart.destroy(); tideChart = null; }
 
       const chartHeight = 120;
+      canvas.width = totalWidth;
+      canvas.height = chartHeight;
       canvas.style.width = totalWidth + 'px';
       canvas.style.height = chartHeight + 'px';
 
@@ -879,9 +888,11 @@
               min: 0,
               max: totalWidth,
               display: false,
+              afterFit: (axis) => { axis.height = 0; },
             },
             y: {
               display: false,
+              afterFit: (axis) => { axis.width = 0; },
             }
           }
         },

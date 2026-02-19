@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全国の波と風</title>
+  <meta name="theme-color" content="#0b1929">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="全国の波と風">
+  <meta property="og:title" content="全国の波と風">
+  <meta property="og:description" content="全国のビーチの風・波・潮位をリアルタイム表示">
+  <meta property="og:image" content="og-image.svg">
+  <meta property="og:type" content="website">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background: #0b1929;
+      color: #e0e8f0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 480px;
+      padding: 0 12px 24px;
+    }
+
+    /* --- Header --- */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 0 8px;
+    }
+    .header-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .header-sub {
+      font-size: 11px;
+      color: #7aa2c4;
+      margin-top: 2px;
+    }
+    .map-link {
+      display: inline-block;
+      font-size: 12px;
+      color: #7ec8e3;
+      text-decoration: none;
+      margin-top: 4px;
+    }
+    .map-link:hover { text-decoration: underline; }
+    #reloadBtn {
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      color: #7ec8e3;
+      font-size: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    #reloadBtn:active { background: rgba(255,255,255,0.16); }
+    #reloadBtn.spinning #refresh {
+      animation: spin 0.8s ease;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #refresh {
+      display: inline-block;
+      line-height: 1;
+    }
+
+    #updateTime {
+      font-size: 11px;
+      color: #7aa2c4;
+      text-align: right;
+      padding-bottom: 8px;
+    }
+
+    /* --- Status (hidden visually, kept for tests) --- */
+    #status {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      height: 0;
+      overflow: hidden;
+    }
+
+    /* --- Cards --- */
+    .card {
+      background: #122640;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      animation: fadeIn 0.4s ease both;
+    }
+    .card:nth-child(2) { animation-delay: 0.05s; }
+    .card:nth-child(3) { animation-delay: 0.1s; }
+    .card:nth-child(4) { animation-delay: 0.15s; }
+    .card:nth-child(5) { animation-delay: 0.2s; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card h2 {
+      font-size: 13px;
+      color: #7aa2c4;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    /* --- Condition --- */
+    .activity-list {
+      display: flex;
+      gap: 8px;
+    }
+    .activity-card {
+      flex: 1;
+      background: #122640;
+      border-radius: 12px;
+      padding: 12px 6px;
+      text-align: center;
+      animation: fadeIn 0.4s ease both;
+    }
+    .activity-card:nth-child(2) { animation-delay: 0.05s; }
+    .activity-card:nth-child(3) { animation-delay: 0.1s; }
+    .activity-name {
+      font-size: 11px;
+      color: #7aa2c4;
+      font-weight: 700;
+      margin-bottom: 2px;
+      white-space: nowrap;
+    }
+    .activity-badge {
+      display: block;
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .activity-badge.active { color: #1b8c4e; }
+    .activity-badge.marginal { color: #c8850a; }
+    .activity-badge.inactive { color: #4a5568; }
+    .activity-note {
+      font-size: 10px;
+      color: #7aa2c4;
+      margin-top: 4px;
+      min-height: 1em;
+    }
+    .wind-type-label {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(126,200,227,0.15);
+      color: #7ec8e3;
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    /* --- Wind --- */
+    .wind-section {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .compass {
+      position: relative;
+      width: 96px;
+      height: 96px;
+      border: 2px solid #2a4a6b;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: rgba(0,0,0,0.15);
+    }
+    .compass-labels {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    .compass-labels span {
+      position: absolute;
+      font-size: 11px;
+      font-weight: 700;
+      color: #7aa2c4;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .compass-labels .dir-n { top: 4px; left: 50%; transform: translateX(-50%); }
+    .compass-labels .dir-s { bottom: 4px; left: 50%; transform: translateX(-50%); }
+    .compass-labels .dir-e { right: 6px; top: 50%; transform: translateY(-50%); }
+    .compass-labels .dir-w { left: 6px; top: 50%; transform: translateY(-50%); }
+    .wind-arrow {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 4px; height: 36px;
+      margin-left: -2px;
+      margin-top: -36px;
+      background: var(--arrow-color, #e74c3c);
+      transform-origin: bottom center;
+      transition: transform 0.6s ease;
+    }
+    .wind-arrow::after {
+      content: '';
+      position: absolute;
+      top: -6px; left: -5px;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 10px solid var(--arrow-color, #e74c3c);
+    }
+    .wind-info {
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    .wind-info .val {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: #7ec8e3;
+    }
+
+    /* --- Wave --- */
+    .wave-section {
+      display: flex;
+      align-items: flex-end;
+      gap: 16px;
+    }
+    .wave-bar-container {
+      width: 36px;
+      height: 96px;
+      background: rgba(0,0,0,0.15);
+      border: 1px solid #2a4a6b;
+      border-radius: 6px;
+      display: flex;
+      align-items: flex-end;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .wave-bar {
+      width: 100%;
+      background: linear-gradient(to top, #2980b9, #7ec8e3);
+      border-radius: 0 0 5px 5px;
+      transition: height 0.6s ease;
+    }
+    .wave-info {
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    .wave-info .val {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: #7ec8e3;
+    }
+
+    /* --- Timeline unified --- */
+    .timeline-card {
+      padding: 12px 0;
+    }
+    .timeline-card > h2 {
+      padding: 0 16px;
+    }
+    .hourly-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .timeline-inner {
+      position: relative;
+    }
+    .timeline-dates {
+      position: relative;
+      height: 18px;
+    }
+    .timeline-date-mark {
+      position: absolute;
+      top: 0;
+      font-size: 11px;
+      font-weight: 700;
+      color: #7ec8e3;
+      white-space: nowrap;
+      padding-left: 6px;
+    }
+    .timeline-day-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1.5px;
+      background: rgba(126,200,227,0.4);
+      pointer-events: none;
+      z-index: 1;
+    }
+    .timeline-now-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: rgba(231,76,60,0.6);
+      pointer-events: none;
+      z-index: 2;
+    }
+    .timeline-hourly {
+      display: flex;
+      width: max-content;
+      padding: 4px 0;
+    }
+    .hour-item {
+      flex: 0 0 70px;
+      text-align: center;
+      padding: 8px 4px;
+      border-radius: 8px;
+      margin-right: 4px;
+      font-size: 12px;
+      white-space: normal;
+      background: rgba(0,0,0,0.15);
+    }
+    .hour-item.now {
+      background: rgba(126,200,227,0.15);
+      box-shadow: inset 0 0 0 1.5px #7ec8e3;
+      font-weight: 700;
+    }
+    .hour-item .h-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .hour-item .h-icon { font-size: 18px; }
+    .hour-item .h-wind,
+    .hour-item .h-wave {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .hour-item .h-wave { color: #7ec8e3; }
+    .hour-item .h-wind-arrow {
+      display: inline-block;
+      font-size: 16px;
+      line-height: 1;
+      margin-top: 2px;
+      color: #e74c3c;
+    }
+    .timeline-chart-section {
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .timeline-chart-label {
+      position: -webkit-sticky;
+      position: sticky;
+      left: 8px;
+      display: block;
+      width: fit-content;
+      font-size: 10px;
+      font-weight: 700;
+      color: #7aa2c4;
+      background: rgba(18,38,64,0.85);
+      padding: 1px 5px;
+      border-radius: 3px;
+      z-index: 3;
+      pointer-events: none;
+      margin: 4px 0 -16px 0;
+      line-height: 14px;
+    }
+
+    /* --- Daily --- */
+    .daily-section { margin-top: 4px; }
+    .daily-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 13px;
+    }
+    .daily-row:last-child { border-bottom: none; }
+    .daily-row .d-date {
+      min-width: 64px;
+      font-weight: 700;
+    }
+    .daily-row .d-icon { font-size: 20px; }
+    .daily-row .d-temp {
+      min-width: 80px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .daily-row .d-wind,
+    .daily-row .d-rain {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+    .daily-row .d-rain { color: #7aa2c4; }
+
+    /* --- Wind Map --- */
+    #wind-map {
+      height: 250px;
+      border-radius: 8px;
+      margin-top: 12px;
+      z-index: 0;
+    }
+    .wind-map-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    /* --- Error --- */
+    .error-msg {
+      color: #e07070;
+      font-size: 13px;
+      padding: 8px 0;
+    }
+
+    /* --- Loading --- */
+    .loading-text {
+      text-align: center;
+      padding: 40px 0;
+      color: #7aa2c4;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app">
+    <div class="header">
+      <div>
+        <div class="header-title" id="headerTitle">全国の波と風</div>
+        <div class="header-sub" id="headerSub"></div>
+        <a href="map.html" class="map-link" id="mapLink">&larr; 全国マップ</a>
+      </div>
+      <button id="reloadBtn" onclick="handleReload()">
+        <span id="refresh">&#x21bb;</span>
+      </button>
+    </div>
+
+    <div id="updateTime"></div>
+
+    <p id="status">読み込み中...</p>
+
+    <div id="result">
+      <div class="loading-text">読み込み中...</div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script>
+    // --- Parse URL parameters, fallback to DEFAULT_CONFIG ---
+    const params = new URLSearchParams(window.location.search);
+    const LAT = parseFloat(params.get('lat')) || DEFAULT_CONFIG.lat;
+    const LON = parseFloat(params.get('lon')) || DEFAULT_CONFIG.lon;
+    const SPOT_NAME = params.get('name') || DEFAULT_CONFIG.name;
+    const COAST_BEARING = parseInt(params.get('coast')) || DEFAULT_CONFIG.coastAngle;
+
+    // --- Update header ---
+    document.getElementById('headerSub').textContent = `${SPOT_NAME} ${LAT.toFixed(2)}N ${LON.toFixed(2)}E`;
+
+    const WEATHER_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,precipitation_probability_max&forecast_hours=48&forecast_days=7&wind_speed_unit=ms&timezone=Asia%2FTokyo`;
+    const MARINE_URL = `https://marine-api.open-meteo.com/v1/marine?latitude=${LAT}&longitude=${LON}&current=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period&hourly=wave_height&forecast_hours=48&timezone=Asia%2FTokyo`;
+
+    function buildTideUrl() {
+      const now = new Date();
+      return `https://tide736.net/api/get_tide.php?pc=14&hc=19&yr=${now.getFullYear()}&mn=${now.getMonth()+1}&dy=${now.getDate()}&rg=week`;
+    }
+
+    const WEATHER_CODES = {
+      0: '快晴', 1: '晴れ', 2: '一部曇り', 3: '曇り',
+      45: '霧', 48: '着氷性の霧',
+      51: '弱い霧雨', 53: '霧雨', 55: '強い霧雨',
+      61: '弱い雨', 63: '雨', 65: '強い雨',
+      71: '弱い雪', 73: '雪', 75: '強い雪',
+      80: '弱いにわか雨', 81: 'にわか雨', 82: '強いにわか雨',
+      95: '雷雨', 96: '雹を伴う雷雨', 99: '強い雹を伴う雷雨'
+    };
+
+    const WEATHER_ICONS = {
+      0: '\u2600\uFE0F', 1: '\u{1F324}\uFE0F', 2: '\u26C5', 3: '\u2601\uFE0F',
+      45: '\u{1F32B}\uFE0F', 48: '\u{1F32B}\uFE0F',
+      51: '\u{1F326}\uFE0F', 53: '\u{1F326}\uFE0F', 55: '\u{1F326}\uFE0F',
+      61: '\u{1F327}\uFE0F', 63: '\u{1F327}\uFE0F', 65: '\u{1F327}\uFE0F',
+      71: '\u2744\uFE0F', 73: '\u2744\uFE0F', 75: '\u2744\uFE0F',
+      80: '\u{1F326}\uFE0F', 81: '\u{1F327}\uFE0F', 82: '\u{1F327}\uFE0F',
+      95: '\u26C8\uFE0F', 96: '\u26C8\uFE0F', 99: '\u26C8\uFE0F'
+    };
+
+    const DAY_NAMES = ['日', '月', '火', '水', '木', '金', '土'];
+
+    function windDirectionToText(deg) {
+      const dirs = ['北','北北東','北東','東北東','東','東南東','南東','南南東',
+                     '南','南南西','南西','西南西','西','西北西','北西','北北西'];
+      return dirs[Math.round(deg / 22.5) % 16];
+    }
+
+    function msToKt(ms) { return (ms * 1.944).toFixed(1); }
+
+    function windSpeedColor(speed) {
+      if (speed >= 10) return '#e67e22';
+      if (speed >= 5) return '#2ecc71';
+      return '#7ec8e3';
+    }
+
+    /* --- Wind direction classification --- */
+    const WIND_TYPE_LABELS = { offshore: 'オフショア', onshore: 'オンショア', sideshore: 'サイドショア', calm: '穏やか' };
+
+    function classifyWind(dir, speed) {
+      if (speed <= 2) return 'calm';
+      let diff = ((dir - COAST_BEARING) % 360 + 360) % 360;
+      if (diff > 180) diff = 360 - diff;
+      if (diff >= 135) return 'offshore';
+      if (diff <= 45) return 'onshore';
+      return 'sideshore';
+    }
+
+    /* --- Condition judgement --- */
+    function judgeWingfoil(ws, wh, wt) {
+      if (ws >= 5 && ws <= 12 && wh <= 1.5 && wt === 'sideshore') return { level: 'active', note: 'サイドショア最適' };
+      if (ws >= 5 && ws <= 12 && wh <= 1.5 && wt === 'offshore') return { level: 'active', note: '沖に流されるリスク注意' };
+      if (ws >= 5 && ws <= 12 && wh <= 1.5 && wt === 'onshore') return { level: 'marginal', note: 'オンショア、帰りにくい' };
+      if (ws >= 3 && ws <= 15 && wh <= 2.0) return { level: 'marginal', note: '' };
+      return { level: 'inactive', note: '' };
+    }
+    function judgeWindsurf(ws, wh, wt) {
+      if (ws >= 6 && ws <= 12 && wh <= 1.5 && (wt === 'sideshore' || wt === 'offshore')) return { level: 'active', note: wt === 'sideshore' ? 'サイドショア最適' : 'オフショア、沖に注意' };
+      if (ws >= 5 && ws <= 15 && wh <= 2.0 && wt !== 'calm') return { level: 'marginal', note: wt === 'onshore' ? 'オンショア、波に注意' : '' };
+      return { level: 'inactive', note: ws < 5 ? '風が足りない' : '' };
+    }
+    function judgeSup(ws, wh, wt) {
+      if (ws <= 3 && wh <= 0.5) return { level: 'active', note: '穏やか' };
+      if (ws <= 5 && wh <= 0.5 && wt === 'offshore') return { level: 'active', note: '沖に出すぎ注意' };
+      if (ws <= 5 && wh <= 1.0) return { level: 'marginal', note: '' };
+      return { level: 'inactive', note: '' };
+    }
+    const ACTIVITY_LABELS = { active: '◎', marginal: '○', inactive: '△' };
+
+    /* --- Render functions --- */
+    function renderCondition(ws, wg, wh, windDir) {
+      const windType = classifyWind(windDir, ws);
+      const windTypeLabel = WIND_TYPE_LABELS[windType];
+      const activities = [
+        { name: 'ウィングフォイル', ...judgeWingfoil(ws, wh, windType) },
+        { name: 'ウィンドサーフィン', ...judgeWindsurf(ws, wh, windType) },
+        { name: 'SUP', ...judgeSup(ws, wh, windType) },
+      ];
+      return `<div class="activity-list">
+        ${activities.map(a => {
+          const note = a.note || windTypeLabel;
+          return `<div class="activity-card"><div class="activity-name">${a.name}</div><span class="activity-badge ${a.level}">${ACTIVITY_LABELS[a.level]}</span><span class="activity-note">${note}</span></div>`;
+        }).join('')}
+      </div>`;
+    }
+
+    function renderWeather(data) {
+      const c = data.current;
+      const units = data.current_units;
+      const weatherText = WEATHER_CODES[c.weather_code] || `コード: ${c.weather_code}`;
+      const windDirText = windDirectionToText(c.wind_direction_10m);
+      const windType = classifyWind(c.wind_direction_10m, c.wind_speed_10m);
+      const windTypeLabel = WIND_TYPE_LABELS[windType];
+      return `<div class="card">
+        <h2>風・気象</h2>
+        <div id="weather-table">
+          <div class="wind-section">
+            <div class="compass">
+              <div class="compass-labels">
+                <span class="dir-n">N</span>
+                <span class="dir-s">S</span>
+                <span class="dir-e">E</span>
+                <span class="dir-w">W</span>
+              </div>
+              <div class="wind-arrow" style="transform: rotate(${c.wind_direction_10m + 180}deg); --arrow-color: ${windSpeedColor(c.wind_speed_10m)}"></div>
+            </div>
+            <div class="wind-info">
+              <div>${weatherText}</div>
+              <div>気温 <span class="val">${c.temperature_2m}${units.temperature_2m}</span> / 体感 <span class="val">${c.apparent_temperature}${units.apparent_temperature}</span></div>
+              <div>風速 <span class="val" style="color:${windSpeedColor(c.wind_speed_10m)}">${c.wind_speed_10m} m/s</span>（${msToKt(c.wind_speed_10m)} kt）</div>
+              <div>風向 ${windDirText}（<span class="val">${c.wind_direction_10m}${units.wind_direction_10m}</span>）<span class="wind-type-label">${windTypeLabel}</span></div>
+              <div>突風 <span class="val">${c.wind_gusts_10m} m/s</span>（${msToKt(c.wind_gusts_10m)} kt）</div>
+            </div>
+          </div>
+          <div id="wind-map"></div>
+        </div>
+      </div>`;
+    }
+
+    function renderMarine(data) {
+      const c = data.current;
+      const units = data.current_units;
+      const waveDirText = windDirectionToText(c.wave_direction);
+      const swellDirText = windDirectionToText(c.swell_wave_direction);
+      const barHeight = Math.max(10, Math.min(85, c.wave_height * 40));
+      return `<div class="card">
+        <h2>波</h2>
+        <div id="marine-table">
+          <div class="wave-section">
+            <div class="wave-bar-container">
+              <div class="wave-bar" style="height: ${barHeight}px"></div>
+            </div>
+            <div class="wave-info">
+              <div>波高 <span class="val">${c.wave_height}${units.wave_height}</span></div>
+              <div>波周期 <span class="val">${c.wave_period}${units.wave_period}</span></div>
+              <div>波向 ${waveDirText}（<span class="val">${c.wave_direction}${units.wave_direction}</span>）</div>
+              <div>うねり高 <span class="val">${c.swell_wave_height}${units.swell_wave_height}</span></div>
+              <div>うねり周期 <span class="val">${c.swell_wave_period}${units.swell_wave_period}</span></div>
+              <div>うねり向 ${swellDirText}（<span class="val">${c.swell_wave_direction}${units.swell_wave_direction}</span>）</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function findNowIndex(times) {
+      const now = new Date();
+      const nowHour = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:00`;
+      const idx = times.indexOf(nowHour);
+      return idx >= 0 ? idx : 0;
+    }
+
+    function renderTimeline(weatherData, marineData, tideData) {
+      const wh = weatherData ? weatherData.hourly : null;
+      const mh = marineData ? marineData.hourly : null;
+      if (!wh && !mh) return '';
+      const times = wh ? wh.time : mh.time;
+      const nowIdx = findNowIndex(times);
+      let displayNowIdx = nowIdx;
+      if (nowIdx < times.length) {
+        const nowHour = new Date(times[nowIdx]).getHours();
+        if (nowHour % 2 !== 0) {
+          displayNowIdx = nowIdx > 0 ? nowIdx - 1 : nowIdx + 1;
+        }
+      }
+      let prevDate = '';
+      let items = '';
+      for (let i = 0; i < times.length; i++) {
+        const hourNum = parseInt(times[i].slice(11, 13));
+        if (hourNum % 2 !== 0) continue;
+        const curDate = times[i].slice(0, 10);
+        const isDayStart = curDate !== prevDate;
+        if (isDayStart) prevDate = curDate;
+        const hour = times[i].slice(11, 16);
+        const isNow = i === displayNowIdx;
+        const icon = wh ? (WEATHER_ICONS[wh.weather_code[i]] || '') : '';
+        const temp = wh ? `${wh.temperature_2m[i]}\u00B0C` : '';
+        const windDir = wh ? wh.wind_direction_10m[i] : null;
+        const wsColor = wh ? windSpeedColor(wh.wind_speed_10m[i]) : '';
+        const windArrow = windDir != null ? `<div class="h-wind-arrow" style="transform:rotate(${windDir + 180}deg);color:${wsColor}">↑</div>` : '';
+        const wind = wh ? `<div class="h-wind" style="color:${wsColor}">${wh.wind_speed_10m[i]} m/s</div>` : '';
+        const wave = mh ? `<div class="h-wave">${mh.wave_height[i]}m</div>` : '';
+        items += `<div class="hour-item${isNow ? ' now' : ''}${isDayStart ? ' day-start' : ''}" data-idx="${i}">
+          <div class="h-time">${hour}</div>
+          <div class="h-icon">${icon}</div>
+          <div>${temp}</div>
+          ${windArrow}
+          ${wind}
+          ${wave}
+        </div>`;
+      }
+      const hasWind = weatherData && weatherData.hourly;
+      const hasTide = !!tideData;
+      let chartSections = '';
+      if (hasWind) {
+        chartSections += '<div class="timeline-chart-section"><span class="timeline-chart-label">風速 m/s</span><canvas id="windChart"></canvas></div>';
+      }
+      if (hasTide) {
+        chartSections += '<div class="timeline-chart-section"><span class="timeline-chart-label">潮位 cm</span><canvas id="tideChart"></canvas></div>';
+      }
+      return `<div class="card timeline-card">
+        <h2>時間別予報</h2>
+        <div class="hourly-scroll" id="timelineSync">
+          <div class="timeline-inner" id="timelineInner">
+            <div class="timeline-dates" id="timelineDates"></div>
+            <div class="timeline-hourly" id="timelineHourly">${items}</div>
+            ${chartSections}
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function renderDaily(weatherData) {
+      if (!weatherData || !weatherData.daily) return '';
+      const d = weatherData.daily;
+      let rows = '';
+      for (let i = 0; i < d.time.length; i++) {
+        let dateLabel;
+        if (i === 0) dateLabel = '今日';
+        else if (i === 1) dateLabel = '明日';
+        else {
+          const dt = new Date(d.time[i] + 'T00:00:00');
+          dateLabel = `${dt.getMonth()+1}/${dt.getDate()}(${DAY_NAMES[dt.getDay()]})`;
+        }
+        const icon = WEATHER_ICONS[d.weather_code[i]] || '';
+        const rain = d.precipitation_probability_max[i];
+        rows += `<div class="daily-row">
+          <span class="d-date">${dateLabel}</span>
+          <span class="d-icon">${icon}</span>
+          <span class="d-temp">${d.temperature_2m_max[i]}\u00B0 / ${d.temperature_2m_min[i]}\u00B0</span>
+          <span class="d-wind" style="color:${windSpeedColor(d.wind_speed_10m_max[i])}">${d.wind_speed_10m_max[i]} m/s</span>
+          <span class="d-rain">${rain != null ? rain + '%' : '-'}</span>
+        </div>`;
+      }
+      return `<div class="card">
+        <h2>7日間予報</h2>
+        <div class="daily-section">${rows}</div>
+      </div>`;
+    }
+
+    /* --- Wind Chart --- */
+    let windChart = null;
+
+    function initWindChart(weatherData, totalWidth, firstDispIdx, slotSpacing, firstCenter) {
+      if (!weatherData || !weatherData.hourly) return;
+      const hourly = weatherData.hourly;
+      const speeds = hourly.wind_speed_10m;
+
+      const canvas = document.getElementById('windChart');
+      if (!canvas) return;
+      if (windChart) { windChart.destroy(); windChart = null; }
+
+      const chartHeight = 120;
+      canvas.style.width = totalWidth + 'px';
+      canvas.style.height = chartHeight + 'px';
+
+      const data = speeds.map((s, i) => ({
+        x: firstCenter + ((i - firstDispIdx) / 2) * slotSpacing,
+        y: s
+      }));
+
+      windChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          datasets: [{
+            label: '風速 (m/s)',
+            data: data,
+            borderColor: '#7ec8e3',
+            backgroundColor: 'rgba(126,200,227,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+            segment: {
+              borderColor: ctx => windSpeedColor(ctx.p1.parsed.y),
+            },
+          }]
+        },
+        options: {
+          responsive: false,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          layout: { padding: { left: 0, right: 0, top: 8, bottom: 4 } },
+          scales: {
+            x: {
+              type: 'linear',
+              min: 0,
+              max: totalWidth,
+              display: false,
+            },
+            y: {
+              display: false,
+              beginAtZero: true,
+            }
+          }
+        }
+      });
+    }
+
+    /* --- Tide Chart --- */
+    let tideChart = null;
+
+    async function fetchTideData() {
+      const res = await fetch(buildTideUrl());
+      if (!res.ok) throw new Error(`Tide API HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    function initTideChart(tideData, weatherTimes, totalWidth, firstDispIdx, slotSpacing, firstCenter) {
+      if (!tideData || !tideData.tide || !tideData.tide.chart) return;
+      const chartData = tideData.tide.chart;
+      const dates = Object.keys(chartData).sort();
+
+      const tidePoints = [];
+      const floodEdds = [];
+      dates.forEach(dateKey => {
+        const day = chartData[dateKey];
+        if (!day.tide) return;
+        day.tide.forEach(p => {
+          tidePoints.push({ time: dateKey + 'T' + p.time, cm: p.cm });
+        });
+        (day.flood || []).forEach(p => {
+          floodEdds.push({ time: dateKey + 'T' + p.time, cm: p.cm, label: '満' });
+        });
+        (day.edd || []).forEach(p => {
+          floodEdds.push({ time: dateKey + 'T' + p.time, cm: p.cm, label: '干' });
+        });
+      });
+
+      if (!weatherTimes || weatherTimes.length === 0) return;
+      const hourlyTimes = weatherTimes;
+      const hourlyValues = [];
+
+      for (let i = 0; i < hourlyTimes.length; i++) {
+        const target = new Date(hourlyTimes[i]).getTime();
+        let closest = null;
+        let minDiff = Infinity;
+        for (const p of tidePoints) {
+          const t = new Date(p.time).getTime();
+          const diff = Math.abs(t - target);
+          if (diff < minDiff) { minDiff = diff; closest = p; }
+        }
+        hourlyValues.push(closest ? closest.cm : null);
+      }
+
+      const annotations = [];
+      for (const fe of floodEdds) {
+        const feTime = new Date(fe.time).getTime();
+        let bestIdx = -1;
+        let bestDiff = Infinity;
+        for (let i = 0; i < hourlyTimes.length; i++) {
+          const diff = Math.abs(new Date(hourlyTimes[i]).getTime() - feTime);
+          if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+        }
+        if (bestIdx >= 0 && bestDiff < 3600000) {
+          annotations.push({ idx: bestIdx, label: fe.label, cm: fe.cm });
+        }
+      }
+
+      const canvas = document.getElementById('tideChart');
+      if (!canvas) return;
+      if (tideChart) { tideChart.destroy(); tideChart = null; }
+
+      const chartHeight = 120;
+      canvas.style.width = totalWidth + 'px';
+      canvas.style.height = chartHeight + 'px';
+
+      const data = hourlyValues.map((v, i) => ({
+        x: firstCenter + ((i - firstDispIdx) / 2) * slotSpacing,
+        y: v
+      }));
+
+      const annotationsWithPx = annotations.map(a => ({
+        ...a,
+        px: firstCenter + ((a.idx - firstDispIdx) / 2) * slotSpacing
+      }));
+
+      tideChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          datasets: [{
+            label: '潮位 (cm)',
+            data: data,
+            borderColor: '#a855f7',
+            backgroundColor: 'rgba(168,85,247,0.1)',
+            fill: true,
+            tension: 0.4,
+            pointRadius: 0,
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: false,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          layout: { padding: { left: 0, right: 0, top: 16, bottom: 4 } },
+          scales: {
+            x: {
+              type: 'linear',
+              min: 0,
+              max: totalWidth,
+              display: false,
+            },
+            y: {
+              display: false,
+            }
+          }
+        },
+        plugins: [{
+          id: 'tideAnnotations',
+          afterDraw: (chart) => {
+            const ctx = chart.ctx;
+            const area = chart.chartArea;
+            const xScale = chart.scales.x;
+            const yScale = chart.scales.y;
+
+            for (const a of annotationsWithPx) {
+              const x = xScale.getPixelForValue(a.px);
+              const y = yScale.getPixelForValue(a.cm);
+              if (x < area.left || x > area.right) continue;
+              ctx.save();
+              ctx.fillStyle = a.label === '満' ? '#e74c3c' : '#2ecc71';
+              ctx.font = 'bold 11px Noto Sans JP';
+              ctx.textAlign = 'center';
+              ctx.fillText(a.label, x, y - 8);
+              ctx.beginPath();
+              ctx.arc(x, y, 3, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          }
+        }]
+      });
+    }
+
+    /* --- Timeline Layout --- */
+    function initTimelineLayout(weatherData, tideData) {
+      const hourlyEl = document.getElementById('timelineHourly');
+      const innerEl = document.getElementById('timelineInner');
+      const syncEl = document.getElementById('timelineSync');
+      if (!hourlyEl || !innerEl || !syncEl) return;
+
+      const items = hourlyEl.querySelectorAll('.hour-item');
+      if (items.length === 0) return;
+
+      const totalWidth = hourlyEl.scrollWidth;
+      innerEl.style.width = totalWidth + 'px';
+
+      const firstItem = items[0];
+      const lastItem = items[items.length - 1];
+      const firstCenter = firstItem.offsetLeft + firstItem.offsetWidth / 2;
+      const lastCenter = lastItem.offsetLeft + lastItem.offsetWidth / 2;
+
+      const times = weatherData ? weatherData.hourly.time : null;
+      if (times) {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`;
+
+        const datesEl = document.getElementById('timelineDates');
+        const dayStartItems = hourlyEl.querySelectorAll('.hour-item.day-start');
+
+        dayStartItems.forEach((item, idx) => {
+          const dataIdx = parseInt(item.dataset.idx);
+          const curDate = times[dataIdx].slice(0, 10);
+          let label;
+          if (curDate === todayStr) label = '今日';
+          else if (curDate === tomorrowStr) label = '明日';
+          else {
+            const dt = new Date(curDate + 'T00:00:00');
+            label = `${dt.getMonth()+1}/${dt.getDate()}(${DAY_NAMES[dt.getDay()]})`;
+          }
+
+          if (datesEl) {
+            const mark = document.createElement('span');
+            mark.className = 'timeline-date-mark';
+            mark.style.left = item.offsetLeft + 'px';
+            mark.textContent = label;
+            datesEl.appendChild(mark);
+          }
+
+          if (idx > 0) {
+            const line = document.createElement('div');
+            line.className = 'timeline-day-line';
+            line.style.left = item.offsetLeft + 'px';
+            innerEl.appendChild(line);
+          }
+        });
+
+        const nowItem = hourlyEl.querySelector('.hour-item.now');
+        if (nowItem) {
+          const nowLine = document.createElement('div');
+          nowLine.className = 'timeline-now-line';
+          nowLine.style.left = (nowItem.offsetLeft + nowItem.offsetWidth / 2) + 'px';
+          innerEl.appendChild(nowLine);
+        }
+      }
+
+      let firstDispIdx = 0;
+      if (times) {
+        for (let i = 0; i < times.length; i++) {
+          if (parseInt(times[i].slice(11, 13)) % 2 === 0) { firstDispIdx = i; break; }
+        }
+      }
+      const numItems = items.length;
+      const slotSpacing = numItems > 1 ? (lastCenter - firstCenter) / (numItems - 1) : 74;
+
+      if (weatherData && weatherData.hourly) {
+        initWindChart(weatherData, totalWidth, firstDispIdx, slotSpacing, firstCenter);
+      }
+      if (tideData && weatherData && weatherData.hourly) {
+        initTideChart(tideData, weatherData.hourly.time, totalWidth, firstDispIdx, slotSpacing, firstCenter);
+      }
+
+      const nowItem = hourlyEl.querySelector('.hour-item.now');
+      if (nowItem) {
+        const scrollTarget = nowItem.offsetLeft - syncEl.clientWidth / 2 + nowItem.offsetWidth / 2;
+        syncEl.scrollLeft = Math.max(0, scrollTarget);
+      }
+    }
+
+    /* --- Wind Map --- */
+    let windMap = null;
+    let windMarkers = [];
+
+    function generateArrowPositions(lat, lon) {
+      const offset = 0.003;
+      const positions = [];
+      for (let r = -1; r <= 1; r++) {
+        for (let c = -1; c <= 1; c++) {
+          positions.push([lat + r * offset, lon + c * offset]);
+        }
+      }
+      return positions;
+    }
+
+    const ARROW_POSITIONS = generateArrowPositions(LAT, LON);
+
+    function initWindMap() {
+      if (windMap) return;
+      const el = document.getElementById('wind-map');
+      if (!el) return;
+      windMap = L.map('wind-map', { zoomControl: false, attributionControl: true }).setView([LAT, LON], 15);
+      L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>'
+      }).addTo(windMap);
+    }
+
+    function updateWindMarkers(dir, speed) {
+      if (!windMap) return;
+      const color = windSpeedColor(speed);
+      const svg = `<svg width="36" height="36" viewBox="0 0 36 36" style="transform:rotate(${dir + 180}deg);filter:drop-shadow(0 1px 3px rgba(0,0,0,0.7))"><polygon points="18,2 10,30 18,22 26,30" fill="${color}" stroke="#fff" stroke-width="2"/></svg>`;
+      const icon = L.divIcon({
+        className: 'wind-map-arrow',
+        html: svg,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
+      });
+      if (windMarkers.length) {
+        windMarkers.forEach(m => m.setIcon(icon));
+      } else {
+        ARROW_POSITIONS.forEach(pos => {
+          windMarkers.push(L.marker(pos, { icon: icon }).addTo(windMap));
+        });
+      }
+    }
+
+    /* --- Data fetch --- */
+    async function fetchWeatherData() {
+      const res = await fetch(WEATHER_URL);
+      if (!res.ok) throw new Error(`Weather API HTTP ${res.status}`);
+      return await res.json();
+    }
+    async function fetchMarineData() {
+      const res = await fetch(MARINE_URL);
+      if (!res.ok) throw new Error(`Marine API HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    async function fetchAll() {
+      const statusEl = document.getElementById('status');
+      const resultEl = document.getElementById('result');
+      const updateTimeEl = document.getElementById('updateTime');
+
+      statusEl.textContent = '読み込み中...';
+      resultEl.innerHTML = '<div class="loading-text">読み込み中...</div>';
+
+      const [weatherResult, marineResult, tideResult] = await Promise.allSettled([
+        fetchWeatherData(),
+        fetchMarineData(),
+        fetchTideData()
+      ]);
+
+      let conditionHtml = '';
+      let html = '';
+      const errors = [];
+
+      if (weatherResult.status === 'fulfilled') {
+        html += renderWeather(weatherResult.value);
+      } else {
+        html += '<div class="card"><h2>風・気象</h2><p class="error-msg">風データを取得できませんでした。</p></div>';
+        errors.push('風データ');
+      }
+
+      if (marineResult.status === 'fulfilled') {
+        html += renderMarine(marineResult.value);
+      } else {
+        html += '<div class="card"><h2>波</h2><p class="error-msg">波データを取得できませんでした。</p></div>';
+        errors.push('波データ');
+      }
+
+      if (weatherResult.status === 'fulfilled' && marineResult.status === 'fulfilled') {
+        const w = weatherResult.value.current;
+        const m = marineResult.value.current;
+        conditionHtml = renderCondition(w.wind_speed_10m, w.wind_gusts_10m, m.wave_height, w.wind_direction_10m);
+      }
+
+      const timelineHtml = renderTimeline(
+        weatherResult.status === 'fulfilled' ? weatherResult.value : null,
+        marineResult.status === 'fulfilled' ? marineResult.value : null,
+        tideResult.status === 'fulfilled' ? tideResult.value : null
+      );
+
+      const dailyHtml = renderDaily(
+        weatherResult.status === 'fulfilled' ? weatherResult.value : null
+      );
+
+      resultEl.innerHTML = conditionHtml + html + timelineHtml + dailyHtml;
+
+      if (weatherResult.status === 'fulfilled') {
+        initTimelineLayout(
+          weatherResult.value,
+          tideResult.status === 'fulfilled' ? tideResult.value : null
+        );
+        const w = weatherResult.value.current;
+        windMarkers = [];
+        windMap = null;
+        initWindMap();
+        updateWindMarkers(w.wind_direction_10m, w.wind_speed_10m);
+      }
+
+      if (errors.length === 0) {
+        statusEl.textContent = '取得成功';
+      } else if (errors.length === 2) {
+        statusEl.textContent = 'エラー: すべてのデータ取得に失敗しました';
+      } else {
+        statusEl.textContent = `一部エラー: ${errors.join('、')}の取得に失敗`;
+      }
+
+      const now = new Date();
+      updateTimeEl.textContent = `更新: ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+    }
+
+    function handleReload() {
+      const btn = document.getElementById('reloadBtn');
+      btn.classList.add('spinning');
+      setTimeout(() => btn.classList.remove('spinning'), 800);
+      fetchAll();
+    }
+
+    fetchAll();
+    setInterval(fetchAll, 10 * 60 * 1000);
+  </script>
+</body>
+</html>

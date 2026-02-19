@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#061220"/>
+      <stop offset="50%" stop-color="#0b1929"/>
+      <stop offset="100%" stop-color="#0f2a45"/>
+    </linearGradient>
+    <linearGradient id="wave1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0066bb"/>
+      <stop offset="50%" stop-color="#00aaee"/>
+      <stop offset="100%" stop-color="#0077cc"/>
+    </linearGradient>
+    <linearGradient id="wave2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#004488"/>
+      <stop offset="50%" stop-color="#0077bb"/>
+      <stop offset="100%" stop-color="#004488"/>
+    </linearGradient>
+    <linearGradient id="wave3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#003366"/>
+      <stop offset="50%" stop-color="#005599"/>
+      <stop offset="100%" stop-color="#003366"/>
+    </linearGradient>
+    <linearGradient id="ogwind" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00d4ff" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#00aaee" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="title-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#c0ddf0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#sky)"/>
+
+  <!-- Wind streaks (decorative) -->
+  <line x1="80" y1="120" x2="450" y2="120" stroke="url(#ogwind)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="150" y1="155" x2="520" y2="155" stroke="url(#ogwind)" stroke-width="4" stroke-linecap="round"/>
+  <line x1="100" y1="185" x2="400" y2="185" stroke="url(#ogwind)" stroke-width="3" stroke-linecap="round"/>
+  <line x1="750" y1="100" x2="1100" y2="100" stroke="url(#ogwind)" stroke-width="5" stroke-linecap="round"/>
+  <line x1="800" y1="135" x2="1050" y2="135" stroke="url(#ogwind)" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Waves (background layers) -->
+  <path d="M-50 520 Q100 460 250 520 Q400 580 550 520 Q700 460 850 520 Q1000 580 1150 520 L1250 520 L1250 630 L-50 630 Z"
+        fill="url(#wave3)" opacity="0.5"/>
+  <path d="M-50 490 Q80 430 220 490 Q360 550 500 490 Q640 430 780 490 Q920 550 1060 490 Q1140 455 1250 490 L1250 630 L-50 630 Z"
+        fill="url(#wave2)" opacity="0.6"/>
+  <path d="M-50 510 Q120 455 280 510 Q440 565 600 510 Q760 455 920 510 Q1050 555 1250 510 L1250 630 L-50 630 Z"
+        fill="url(#wave1)" opacity="0.4"/>
+
+  <!-- App title -->
+  <text x="600" y="290" text-anchor="middle" font-family="'Noto Sans JP', 'Hiragino Sans', sans-serif" font-size="72" font-weight="700" fill="url(#title-grad)">由比ヶ浜コンディション</text>
+
+  <!-- Subtitle -->
+  <text x="600" y="360" text-anchor="middle" font-family="'Noto Sans JP', 'Hiragino Sans', sans-serif" font-size="30" fill="#7aa2c4">風・波・潮位をリアルタイム表示</text>
+
+  <!-- Location badge -->
+  <rect x="470" y="390" width="260" height="36" rx="18" fill="#ffffff" fill-opacity="0.08"/>
+  <text x="600" y="415" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="16" fill="#5a8aaa">35.31°N  139.54°E</text>
+
+  <!-- Small wave icon in upper area -->
+  <path d="M520 210 Q555 185 585 210 Q615 235 645 210 Q665 195 690 210"
+        stroke="#00d4ff" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.5"/>
+</svg>

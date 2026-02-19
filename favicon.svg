@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f2540"/>
+      <stop offset="100%" stop-color="#0b1929"/>
+    </linearGradient>
+    <linearGradient id="wave-fill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00d4ff"/>
+      <stop offset="100%" stop-color="#0066cc"/>
+    </linearGradient>
+    <linearGradient id="wind-line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00d4ff"/>
+      <stop offset="100%" stop-color="#0088cc" stop-opacity="0.5"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Wind lines (bold) -->
+  <line x1="80" y1="130" x2="350" y2="130" stroke="url(#wind-line)" stroke-width="32" stroke-linecap="round"/>
+  <line x1="130" y1="195" x2="400" y2="195" stroke="url(#wind-line)" stroke-width="28" stroke-linecap="round"/>
+  <!-- Wave (filled, large) -->
+  <path d="M30 310 Q140 210 256 310 Q372 410 482 310 L482 460 Q372 380 256 460 Q140 380 30 460 Z"
+        fill="url(#wave-fill)" opacity="0.9"/>
+</svg>

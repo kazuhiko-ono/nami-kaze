@@ -20,4 +20,5 @@ const SPOTS = [
   { name: '木崎浜', lat: 31.8321, lon: 131.4561, coast: 100, area: '宮崎' },
   // 奄美・沖縄
   { name: 'クレータービーチ', lat: 28.4220, lon: 129.6323, coast: 90, area: '奄美・沖縄' },
+  { name: '前浜ビーチ', lat: 24.7332, lon: 125.2581, coast: 250, area: '宮古島' },
 ];

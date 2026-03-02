@@ -1,6 +1,6 @@
 const SPOTS = [
   // 湘南
-  { name: '由比ヶ浜', lat: 35.3065, lon: 139.5398, coast: 180, area: '湘南' },
+  { name: '由比ヶ浜', lat: 35.300805, lon: 139.540638, coast: 180, area: '湘南' },
   { name: '七里ヶ浜', lat: 35.3020, lon: 139.5114, coast: 200, area: '湘南' },
   { name: '鵠沼', lat: 35.3122, lon: 139.4684, coast: 190, area: '湘南' },
   { name: '辻堂', lat: 35.3154, lon: 139.4251, coast: 190, area: '湘南' },

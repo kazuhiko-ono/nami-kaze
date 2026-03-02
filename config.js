@@ -1,6 +1,6 @@
 const DEFAULT_CONFIG = {
-  lat: 35.3065,
-  lon: 139.5398,
+  lat: 35.300805,
+  lon: 139.540638,
   name: '由比ヶ浜',
   coastAngle: 180
 };

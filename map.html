@@ -108,6 +108,153 @@
       border-radius: 50%;
       flex-shrink: 0;
     }
+
+    /* --- Favorites --- */
+    .favorites-bar {
+      background: #0d2137;
+      padding: 8px 16px;
+      z-index: 1000;
+      position: relative;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .favorites-bar-inner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .favorites-bar-inner::-webkit-scrollbar { display: none; }
+    .fav-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      background: #1a5276;
+      color: #7ec8e3;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .fav-chip:hover { background: #1f6b9a; }
+    .favorites-empty {
+      font-size: 12px;
+      color: #5a7a94;
+      padding: 4px 0;
+    }
+
+    /* --- Popup favorite button --- */
+    .popup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .popup-fav-btn {
+      background: none;
+      border: none;
+      font-size: 22px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      color: #f1c40f;
+      flex-shrink: 0;
+    }
+
+    /* --- Email subscribe --- */
+    .subscribe-section {
+      background: #0d2137;
+      padding: 20px 16px;
+      text-align: center;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .subscribe-section p {
+      font-size: 13px;
+      color: #7aa2c4;
+      margin-bottom: 12px;
+    }
+    .subscribe-form {
+      display: flex;
+      gap: 8px;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+    .subscribe-form input[type="email"] {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #2a4a6b;
+      border-radius: 8px;
+      background: #122640;
+      color: #e0e8f0;
+      font-size: 14px;
+      font-family: 'Noto Sans JP', sans-serif;
+      outline: none;
+      min-width: 0;
+    }
+    .subscribe-form input[type="email"]::placeholder { color: #5a7a94; }
+    .subscribe-form input[type="email"]:focus { border-color: #7ec8e3; }
+    .subscribe-form button {
+      padding: 10px 16px;
+      background: #1a5276;
+      color: #7ec8e3;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: 'Noto Sans JP', sans-serif;
+      transition: background 0.2s;
+    }
+    .subscribe-form button:hover { background: #1f6b9a; }
+    .subscribe-msg {
+      font-size: 12px;
+      color: #2ecc71;
+      margin-top: 8px;
+      min-height: 1.2em;
+    }
+
+    /* --- Guide overlay --- */
+    .guide-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .guide-box {
+      background: #122640;
+      border-radius: 16px;
+      padding: 28px 24px;
+      max-width: 320px;
+      text-align: center;
+    }
+    .guide-box p {
+      font-size: 14px;
+      line-height: 1.8;
+      margin-bottom: 20px;
+    }
+    .guide-ok-btn {
+      display: inline-block;
+      padding: 10px 32px;
+      background: #1a5276;
+      color: #7ec8e3;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: 'Noto Sans JP', sans-serif;
+      transition: background 0.2s;
+    }
+    .guide-ok-btn:hover { background: #1f6b9a; }
   </style>
 </head>
 <body>
@@ -116,9 +263,20 @@
     <div class="header-title">全国の波と風 🌊💨</div>
   </div>
 
+  <div class="favorites-bar" id="favoritesBar"></div>
+
   <div id="map"></div>
 
   <div class="legend" id="legend"></div>
+
+  <div class="subscribe-section">
+    <p>コンディション通知を受け取りませんか？</p>
+    <form class="subscribe-form" id="subscribeForm">
+      <input type="email" id="subscribeEmail" placeholder="メールアドレス" required>
+      <button type="submit">送信</button>
+    </form>
+    <div class="subscribe-msg" id="subscribeMsg"></div>
+  </div>
 
   <script src="spots.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -133,9 +291,68 @@
     };
 
     const DEFAULT_COLOR = '#7ec8e3';
+    const FAV_KEY = 'nami-kaze-favorites';
+    const FAV_MAX = 3;
+    const GUIDE_KEY = 'nami-kaze-guide-shown';
+    const NOTIFY_API = '/api/subscribe';
 
     function getAreaColor(area) {
       return AREA_COLORS[area] || DEFAULT_COLOR;
+    }
+
+    /* --- Favorites helpers --- */
+    function getFavorites() {
+      try {
+        return JSON.parse(localStorage.getItem(FAV_KEY)) || [];
+      } catch { return []; }
+    }
+
+    function saveFavorites(favs) {
+      localStorage.setItem(FAV_KEY, JSON.stringify(favs));
+    }
+
+    function isFavorite(name) {
+      return getFavorites().includes(name);
+    }
+
+    function toggleFavorite(name) {
+      const favs = getFavorites();
+      const idx = favs.indexOf(name);
+      if (idx >= 0) {
+        favs.splice(idx, 1);
+        saveFavorites(favs);
+        return false;
+      }
+      if (favs.length >= FAV_MAX) {
+        alert(`無料版は${FAV_MAX}地点まで`);
+        return isFavorite(name);
+      }
+      favs.push(name);
+      saveFavorites(favs);
+      return true;
+    }
+
+    function renderFavoritesBar() {
+      const bar = document.getElementById('favoritesBar');
+      const favs = getFavorites();
+      if (favs.length === 0) {
+        bar.innerHTML = '<div class="favorites-empty">☆ マーカーをタップしてお気に入りに追加</div>';
+        return;
+      }
+      bar.innerHTML = '<div class="favorites-bar-inner">' + favs.map(name => {
+        const spot = SPOTS.find(s => s.name === name);
+        if (!spot) return '';
+        const href = `index.html?lat=${spot.lat}&lon=${spot.lon}&name=${encodeURIComponent(spot.name)}&coast=${spot.coast}`;
+        return `<a class="fav-chip" href="${href}">★ ${spot.name}</a>`;
+      }).join('') + '</div>';
+    }
+
+    /* --- Update popup fav button state --- */
+    function updatePopupFavBtn(name) {
+      const btn = document.querySelector('.popup-fav-btn');
+      if (btn && btn.dataset.name === name) {
+        btn.textContent = isFavorite(name) ? '★' : '☆';
+      }
     }
 
     // Initialize map
@@ -163,12 +380,30 @@
 
       const marker = L.marker([spot.lat, spot.lon], { icon: icon }).addTo(map);
 
-      const popupContent = `
-        <div class="popup-name">${spot.name}</div>
-        <div class="popup-area">${spot.area}</div>
-        <a class="popup-btn" href="index.html?lat=${spot.lat}&lon=${spot.lon}&name=${encodeURIComponent(spot.name)}&coast=${spot.coast}">コンディションを見る</a>
-      `;
-      marker.bindPopup(popupContent);
+      marker.on('popupopen', () => {
+        const btn = document.querySelector('.popup-fav-btn');
+        if (btn) {
+          btn.addEventListener('click', () => {
+            toggleFavorite(spot.name);
+            updatePopupFavBtn(spot.name);
+            renderFavoritesBar();
+          });
+        }
+      });
+
+      marker.bindPopup(() => {
+        const fav = isFavorite(spot.name);
+        return `
+          <div class="popup-header">
+            <div>
+              <div class="popup-name">${spot.name}</div>
+              <div class="popup-area">${spot.area}</div>
+            </div>
+            <button class="popup-fav-btn" data-name="${spot.name}">${fav ? '★' : '☆'}</button>
+          </div>
+          <a class="popup-btn" href="index.html?lat=${spot.lat}&lon=${spot.lon}&name=${encodeURIComponent(spot.name)}&coast=${spot.coast}">コンディションを見る</a>
+        `;
+      });
     });
 
     // Build legend
@@ -178,6 +413,57 @@
       const color = getAreaColor(area);
       return `<div class="legend-item"><span class="legend-dot" style="background:${color}"></span>${area}</div>`;
     }).join('');
+
+    // Render favorites bar
+    renderFavoritesBar();
+
+    /* --- Email subscribe --- */
+    document.getElementById('subscribeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('subscribeEmail').value.trim();
+      const msgEl = document.getElementById('subscribeMsg');
+      if (!email) return;
+
+      try {
+        const res = await fetch(NOTIFY_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        if (res.ok) {
+          msgEl.textContent = '登録ありがとうございます！準備ができ次第ご連絡します';
+          document.getElementById('subscribeEmail').value = '';
+          return;
+        }
+      } catch {}
+
+      // Fallback: save to localStorage
+      try {
+        const stored = JSON.parse(localStorage.getItem('nami-kaze-subscribers') || '[]');
+        if (!stored.includes(email)) stored.push(email);
+        localStorage.setItem('nami-kaze-subscribers', JSON.stringify(stored));
+      } catch {}
+      msgEl.textContent = '登録ありがとうございます！準備ができ次第ご連絡します';
+      document.getElementById('subscribeEmail').value = '';
+    });
+
+    /* --- First-visit guide --- */
+    if (!localStorage.getItem(GUIDE_KEY)) {
+      const overlay = document.createElement('div');
+      overlay.className = 'guide-overlay';
+      overlay.id = 'guideOverlay';
+      overlay.innerHTML = `
+        <div class="guide-box">
+          <p>地点をタップしてコンディションをチェック！<br>☆でお気に入りに追加できます</p>
+          <button class="guide-ok-btn" id="guideOkBtn">OK</button>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      document.getElementById('guideOkBtn').addEventListener('click', () => {
+        localStorage.setItem(GUIDE_KEY, '1');
+        overlay.remove();
+      });
+    }
   </script>
 </body>
 </html>

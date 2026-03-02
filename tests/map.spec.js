@@ -1,24 +1,35 @@
 const { test, expect } = require('@playwright/test');
 
+async function dismissGuide(page) {
+  const guide = page.locator('#guideOverlay');
+  if (await guide.isVisible({ timeout: 500 }).catch(() => false)) {
+    await page.locator('#guideOkBtn').click();
+  }
+}
+
 test.describe('全国マップページ', () => {
 
   test('map.html が開ける', async ({ page }) => {
     await page.goto('/map.html');
+    await dismissGuide(page);
     await expect(page.locator('.header-title')).toContainText('全国の波と風');
   });
 
   test('#map が表示されている', async ({ page }) => {
     await page.goto('/map.html');
+    await dismissGuide(page);
     await expect(page.locator('#map')).toBeVisible();
   });
 
   test('Leaflet タイルレイヤーが読み込まれている', async ({ page }) => {
     await page.goto('/map.html');
+    await dismissGuide(page);
     await expect(page.locator('#map .leaflet-tile-pane img').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('マーカーが13個以上存在する', async ({ page }) => {
     await page.goto('/map.html');
+    await dismissGuide(page);
     await expect(page.locator('#map .leaflet-marker-icon').first()).toBeVisible({ timeout: 10000 });
     const count = await page.locator('#map .leaflet-marker-icon').count();
     expect(count).toBeGreaterThanOrEqual(13);
@@ -26,6 +37,7 @@ test.describe('全国マップページ', () => {
 
   test('マーカークリックでポップアップが表示される', async ({ page }) => {
     await page.goto('/map.html');
+    await dismissGuide(page);
     await expect(page.locator('#map .leaflet-marker-icon').first()).toBeVisible({ timeout: 10000 });
     await page.locator('#map .leaflet-marker-icon').first().click({ force: true });
     await expect(page.locator('.leaflet-popup')).toBeVisible({ timeout: 5000 });
@@ -35,6 +47,7 @@ test.describe('全国マップページ', () => {
 
   test('ポップアップのリンクに正しいURLパラメータが含まれる', async ({ page }) => {
     await page.goto('/map.html');
+    await dismissGuide(page);
     await expect(page.locator('#map .leaflet-marker-icon').first()).toBeVisible({ timeout: 10000 });
     await page.locator('#map .leaflet-marker-icon').first().click({ force: true });
     await expect(page.locator('.popup-btn')).toBeVisible({ timeout: 5000 });
@@ -48,6 +61,7 @@ test.describe('全国マップページ', () => {
 
   test('凡例が表示されている', async ({ page }) => {
     await page.goto('/map.html');
+    await dismissGuide(page);
     await expect(page.locator('#legend')).toBeVisible();
     await expect(page.locator('.legend-item').first()).toBeVisible();
   });

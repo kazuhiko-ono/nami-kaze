@@ -452,6 +452,30 @@
       color: #7aa2c4;
       font-size: 14px;
     }
+
+    /* --- Toast --- */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #122640;
+      color: #e0e8f0;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      z-index: 3000;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   </style>
 </head>
 <body>
@@ -498,6 +522,22 @@
     }
     function saveFavorites(favs) { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); }
 
+    function showToast(msg) {
+      let el = document.getElementById('toast');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'toast';
+        el.id = 'toast';
+        document.body.appendChild(el);
+      }
+      el.textContent = msg;
+      el.classList.remove('show');
+      void el.offsetWidth;
+      el.classList.add('show');
+      clearTimeout(el._tid);
+      el._tid = setTimeout(() => el.classList.remove('show'), 2000);
+    }
+
     // --- Update header ---
     document.getElementById('headerSub').textContent = `${SPOT_NAME} ${LAT.toFixed(2)}N ${LON.toFixed(2)}E`;
 
@@ -514,14 +554,16 @@
         favs.splice(idx, 1);
         saveFavorites(favs);
         favBtn.textContent = '☆';
+        showToast('お気に入りから削除しました');
       } else {
         if (favs.length >= FAV_MAX) {
-          alert(`無料版は${FAV_MAX}地点まで`);
+          showToast(`無料版は${FAV_MAX}地点までです`);
           return;
         }
         favs.push(SPOT_NAME);
         saveFavorites(favs);
         favBtn.textContent = '★';
+        showToast('お気に入りに追加しました');
       }
     });
 

@@ -54,6 +54,9 @@ test.describe('お気に入り機能 (map.html)', () => {
     // Click to add favorite
     await page.locator('.popup-fav-btn').click();
 
+    // Toast should appear
+    await expect(page.locator('#toast')).toContainText('お気に入りに追加しました');
+
     // Should now show ★
     await expect(page.locator('.popup-fav-btn')).toHaveText('★');
 
@@ -80,6 +83,7 @@ test.describe('お気に入り機能 (map.html)', () => {
 
     // Now click again to remove
     await page.locator('.popup-fav-btn').click();
+    await expect(page.locator('#toast')).toContainText('お気に入りから削除しました');
     await expect(page.locator('.popup-fav-btn')).toHaveText('☆');
     await expect(page.locator('.favorites-empty')).toBeVisible();
 
@@ -102,12 +106,6 @@ test.describe('お気に入り機能 (map.html)', () => {
 
     await expect(page.locator('.fav-chip')).toHaveCount(3);
 
-    // Try to add a 4th - handle the alert dialog
-    page.on('dialog', async dialog => {
-      expect(dialog.message()).toContain('無料版は3地点まで');
-      await dialog.accept();
-    });
-
     // Click a marker that's not in favorites
     await expect(page.locator('#map .leaflet-marker-icon').first()).toBeVisible({ timeout: 10000 });
     const markers = page.locator('#map .leaflet-marker-icon');
@@ -118,8 +116,9 @@ test.describe('お気に入り機能 (map.html)', () => {
       if (await popup.isVisible()) {
         const name = await page.locator('.popup-name').textContent();
         if (!['由比ヶ浜', '七里ヶ浜', '鵠沼'].includes(name.trim())) {
-          // This one is not favorited, try adding
           await page.locator('.popup-fav-btn').click();
+          // Toast should show limit message
+          await expect(page.locator('#toast')).toContainText('無料版は3地点までです');
           break;
         }
         await page.locator('#map').click({ position: { x: 10, y: 10 } });
@@ -163,17 +162,18 @@ test.describe('お気に入り機能 (index.html)', () => {
     await expect(page.locator('#favToggle')).toHaveText('☆');
   });
 
-  test('☆タップで★に切り替わりlocalStorageに保存', async ({ page }) => {
+  test('☆タップで★に切り替わりトースト表示', async ({ page }) => {
     await page.goto(INDEX_URL);
     await page.evaluate(() => localStorage.removeItem('nami-kaze-favorites'));
     await page.reload();
     await page.locator('#favToggle').click();
     await expect(page.locator('#favToggle')).toHaveText('★');
+    await expect(page.locator('#toast')).toContainText('お気に入りに追加しました');
     const favs = await page.evaluate(() => JSON.parse(localStorage.getItem('nami-kaze-favorites')));
     expect(favs).toContain('由比ヶ浜');
   });
 
-  test('★タップで☆に戻りlocalStorageから削除', async ({ page }) => {
+  test('★タップで☆に戻りトースト表示', async ({ page }) => {
     await page.goto(INDEX_URL);
     await page.evaluate(() => {
       localStorage.setItem('nami-kaze-favorites', JSON.stringify(['由比ヶ浜']));
@@ -182,6 +182,7 @@ test.describe('お気に入り機能 (index.html)', () => {
     await expect(page.locator('#favToggle')).toHaveText('★');
     await page.locator('#favToggle').click();
     await expect(page.locator('#favToggle')).toHaveText('☆');
+    await expect(page.locator('#toast')).toContainText('お気に入りから削除しました');
     const favs = await page.evaluate(() => JSON.parse(localStorage.getItem('nami-kaze-favorites')));
     expect(favs).not.toContain('由比ヶ浜');
   });
@@ -195,19 +196,16 @@ test.describe('お気に入り機能 (index.html)', () => {
     await expect(page.locator('#favToggle')).toHaveText('★');
   });
 
-  test('3地点制限のalert表示', async ({ page }) => {
+  test('3地点制限のトースト表示', async ({ page }) => {
     await page.goto(INDEX_URL);
     await page.evaluate(() => {
       localStorage.setItem('nami-kaze-favorites', JSON.stringify(['七里ヶ浜', '鵠沼', '辻堂']));
     });
     await page.reload();
 
-    page.on('dialog', async dialog => {
-      expect(dialog.message()).toContain('無料版は3地点まで');
-      await dialog.accept();
-    });
-
     await page.locator('#favToggle').click();
+    // Toast should show limit message
+    await expect(page.locator('#toast')).toContainText('無料版は3地点までです');
     // Should still be ☆
     await expect(page.locator('#favToggle')).toHaveText('☆');
     const favs = await page.evaluate(() => JSON.parse(localStorage.getItem('nami-kaze-favorites')));

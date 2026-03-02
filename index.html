@@ -767,10 +767,14 @@
         </div>`;
       }
       const hasWind = weatherData && weatherData.hourly;
+      const hasMarine = marineData && marineData.hourly;
       const hasTide = !!tideData;
       let chartSections = '';
       if (hasWind) {
         chartSections += '<div class="timeline-chart-section"><span class="timeline-chart-label">風速 m/s</span><canvas id="windChart"></canvas></div>';
+      }
+      if (hasMarine) {
+        chartSections += '<div class="timeline-chart-section"><span class="timeline-chart-label">波高 m</span><canvas id="waveChart"></canvas></div>';
       }
       if (hasTide) {
         chartSections += '<div class="timeline-chart-section"><span class="timeline-chart-label">潮位 cm</span><canvas id="tideChart"></canvas></div>';
@@ -815,6 +819,12 @@
       </div>`;
     }
 
+    function waveHeightColor(h) {
+      if (h <= 0.5) return '#93c5fd';
+      if (h <= 1.5) return '#4ade80';
+      return '#fb923c';
+    }
+
     /* --- Wind Chart --- */
     let windChart = null;
 
@@ -852,6 +862,68 @@
             borderWidth: 2,
             segment: {
               borderColor: ctx => windSpeedColor(ctx.p1.parsed.y),
+            },
+          }]
+        },
+        options: {
+          responsive: false,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          layout: { padding: { left: 0, right: 0, top: 8, bottom: 4 } },
+          scales: {
+            x: {
+              type: 'linear',
+              min: 0,
+              max: totalWidth,
+              display: false,
+              afterFit: (axis) => { axis.height = 0; },
+            },
+            y: {
+              display: false,
+              beginAtZero: true,
+              afterFit: (axis) => { axis.width = 0; },
+            }
+          }
+        }
+      });
+    }
+
+    /* --- Wave Height Chart --- */
+    let waveChart = null;
+
+    function initWaveChart(marineData, totalWidth, firstDispIdx, slotSpacing, firstCenter) {
+      if (!marineData || !marineData.hourly) return;
+      const heights = marineData.hourly.wave_height;
+
+      const canvas = document.getElementById('waveChart');
+      if (!canvas) return;
+      if (waveChart) { waveChart.destroy(); waveChart = null; }
+
+      const chartHeight = 120;
+      canvas.width = totalWidth;
+      canvas.height = chartHeight;
+      canvas.style.width = totalWidth + 'px';
+      canvas.style.height = chartHeight + 'px';
+
+      const data = heights.map((h, i) => ({
+        x: firstCenter + ((i - firstDispIdx) / 2) * slotSpacing,
+        y: h
+      }));
+
+      waveChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          datasets: [{
+            label: '波高 (m)',
+            data: data,
+            borderColor: '#4ade80',
+            backgroundColor: 'rgba(74,222,128,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+            segment: {
+              borderColor: ctx => waveHeightColor(ctx.p1.parsed.y),
             },
           }]
         },
@@ -1019,7 +1091,7 @@
     }
 
     /* --- Timeline Layout --- */
-    function initTimelineLayout(weatherData, tideData) {
+    function initTimelineLayout(weatherData, marineData, tideData) {
       const hourlyEl = document.getElementById('timelineHourly');
       const innerEl = document.getElementById('timelineInner');
       const syncEl = document.getElementById('timelineSync');
@@ -1095,6 +1167,9 @@
 
       if (weatherData && weatherData.hourly) {
         initWindChart(weatherData, totalWidth, firstDispIdx, slotSpacing, firstCenter);
+      }
+      if (marineData && marineData.hourly) {
+        initWaveChart(marineData, totalWidth, firstDispIdx, slotSpacing, firstCenter);
       }
       if (tideData && weatherData && weatherData.hourly) {
         initTideChart(tideData, weatherData.hourly.time, totalWidth, firstDispIdx, slotSpacing, firstCenter);
@@ -1219,6 +1294,7 @@
       if (weatherResult.status === 'fulfilled') {
         initTimelineLayout(
           weatherResult.value,
+          marineResult.status === 'fulfilled' ? marineResult.value : null,
           tideResult.status === 'fulfilled' ? tideResult.value : null
         );
         const w = weatherResult.value.current;

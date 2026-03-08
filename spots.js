@@ -18,11 +18,13 @@ const SPOTS = [
   { name: '生見', lat: 33.5250, lon: 134.2864, coast: 110, area: '四国' },
   // 宮崎
   { name: '木崎浜', lat: 31.8321, lon: 131.4561, coast: 100, area: '宮崎' },
-  // 福岡
-  { name: '今宿', lat: 33.586249, lon: 130.273788, coast: 0, area: '福岡' },
-  { name: '芥屋', lat: 33.602894, lon: 130.131878, coast: 315, area: '福岡' },
-  // 北九州
-  { name: '福間', lat: 33.760493, lon: 130.434813, coast: 0, area: '北九州' },
+  // 糸島
+  { name: '野北', lat: 33.6125, lon: 130.1580, coast: 340, area: '糸島' },
+  { name: '芥屋', lat: 33.5890, lon: 130.1050, coast: 315, area: '糸島' },
+  { name: '串崎', lat: 33.4970, lon: 130.0410, coast: 280, area: '糸島' },
+  // 福岡東
+  { name: '三笘', lat: 33.7075, lon: 130.4150, coast: 350, area: '福岡東' },
+  { name: '勝浦', lat: 33.8505, lon: 130.4830, coast: 10, area: '福岡東' },
   // 奄美・沖縄
   { name: 'クレータービーチ', lat: 28.4220, lon: 129.6323, coast: 90, area: '奄美・沖縄' },
   { name: '前浜ビーチ', lat: 24.7332, lon: 125.2581, coast: 250, area: '宮古島' },

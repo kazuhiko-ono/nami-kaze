@@ -570,25 +570,9 @@
     const WEATHER_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&models=gfs_seamless&current=temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,precipitation_probability_max&forecast_hours=120&forecast_days=7&wind_speed_unit=ms&timezone=Asia%2FTokyo`;
     const MARINE_URL = `https://marine-api.open-meteo.com/v1/marine?latitude=${LAT}&longitude=${LON}&current=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period&hourly=wave_height&forecast_hours=120&timezone=Asia%2FTokyo`;
 
-    const TIDE_STATIONS = [
-      { name: '江ノ島', lat: 35.3003, lon: 139.4799, pc: 14, hc: 19 },
-      { name: '博多船だまり', lat: 33.6060, lon: 130.4020, pc: 40, hc: 20 },
-    ];
-
-    function findNearestTideStation(lat, lon) {
-      let nearest = TIDE_STATIONS[0];
-      let minDist = Infinity;
-      for (const st of TIDE_STATIONS) {
-        const d = (st.lat - lat) ** 2 + (st.lon - lon) ** 2;
-        if (d < minDist) { minDist = d; nearest = st; }
-      }
-      return nearest;
-    }
-
     function buildTideUrl() {
-      const st = findNearestTideStation(LAT, LON);
       const now = new Date();
-      return `https://tide736.net/api/get_tide.php?pc=${st.pc}&hc=${st.hc}&yr=${now.getFullYear()}&mn=${now.getMonth()+1}&dy=${now.getDate()}&rg=week`;
+      return `https://tide736.net/api/get_tide.php?pc=14&hc=19&yr=${now.getFullYear()}&mn=${now.getMonth()+1}&dy=${now.getDate()}&rg=week`;
     }
 
     const WEATHER_CODES = {

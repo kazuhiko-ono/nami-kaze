@@ -7,8 +7,9 @@ const SPOTS = [
   { name: '茅ヶ崎', lat: 35.3148, lon: 139.3982, coast: 190, area: '湘南' },
   // 三浦
   { name: '津久井浜', lat: 35.1898, lon: 139.6747, coast: 150, area: '三浦' },
-  { name: '逗子', lat: 35.2848, lon: 139.5667, coast: 185, area: '三浦' },
+  { name: '逗子', lat: 35.289884, lon: 139.568849, coast: 185, area: '三浦' },
   // 千葉
+  { name: '検見川', lat: 35.612261, lon: 140.058372, coast: 200, area: '千葉' },
   { name: '一宮', lat: 35.3726, lon: 140.3720, coast: 90, area: '千葉' },
   { name: '鴨川', lat: 35.1041, lon: 140.1105, coast: 135, area: '千葉' },
   { name: '御宿', lat: 35.1809, lon: 140.3580, coast: 100, area: '千葉' },

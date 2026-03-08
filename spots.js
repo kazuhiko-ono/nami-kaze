@@ -13,6 +13,7 @@ const SPOTS = [
   { name: '一宮', lat: 35.3726, lon: 140.3720, coast: 90, area: '千葉' },
   { name: '鴨川', lat: 35.1041, lon: 140.1105, coast: 135, area: '千葉' },
   { name: '御宿', lat: 35.1809, lon: 140.3580, coast: 100, area: '千葉' },
+  { name: '館山 北条海岸', lat: 35.005819, lon: 139.846906, coast: 225, area: '千葉' },
   // 関西
   { name: '磯ノ浦', lat: 34.2587, lon: 135.0948, coast: 285, area: '関西' },
   // 四国

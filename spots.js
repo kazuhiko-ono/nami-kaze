@@ -19,6 +19,8 @@ const SPOTS = [
   { name: '生見', lat: 33.5250, lon: 134.2864, coast: 110, area: '四国' },
   // 宮崎
   { name: '木崎浜', lat: 31.8321, lon: 131.4561, coast: 100, area: '宮崎' },
+  // 唐津
+  { name: '唐津', lat: 33.460927, lon: 130.012627, coast: 315, area: '唐津' },
   // 福岡
   { name: '今宿', lat: 33.586249, lon: 130.273788, coast: 0, area: '福岡' },
   { name: '芥屋', lat: 33.602894, lon: 130.131878, coast: 315, area: '福岡' },

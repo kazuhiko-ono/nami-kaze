@@ -14,6 +14,8 @@ const SPOTS = [
   { name: '鴨川', lat: 35.1041, lon: 140.1105, coast: 135, area: '千葉' },
   { name: '御宿', lat: 35.1809, lon: 140.3580, coast: 100, area: '千葉' },
   { name: '館山 北条海岸', lat: 35.005819, lon: 139.846906, coast: 225, area: '千葉' },
+  // 浜名湖
+  { name: '舘山寺', lat: 34.742915, lon: 137.579238, coast: 180, area: '浜名湖' },
   // 関西
   { name: '磯ノ浦', lat: 34.2587, lon: 135.0948, coast: 285, area: '関西' },
   // 四国
@@ -27,6 +29,8 @@ const SPOTS = [
   { name: '芥屋', lat: 33.602894, lon: 130.131878, coast: 315, area: '福岡' },
   // 北九州
   { name: '福間', lat: 33.760493, lon: 130.434813, coast: 0, area: '北九州' },
+  // 大分
+  { name: '住吉浜', lat: 33.402883, lon: 131.657977, coast: 90, area: '大分' },
   // 沖縄
   { name: '海中道路', lat: 26.343825, lon: 127.901545, coast: 0, area: '沖縄' },
   // 奄美・沖縄

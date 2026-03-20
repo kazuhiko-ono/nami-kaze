@@ -385,7 +385,7 @@
       bar.innerHTML = '<div class="favorites-bar-inner">' + favs.map(name => {
         const spot = SPOTS.find(s => s.name === name);
         if (!spot) return '';
-        const href = `index.html?lat=${spot.lat}&lon=${spot.lon}&name=${encodeURIComponent(spot.name)}&coast=${spot.coast}`;
+        const href = `index.html?lat=${spot.lat}&lon=${spot.lon}&name=${encodeURIComponent(spot.name)}&coast=${spot.coast}` + (spot.tide ? `&tide_pc=${spot.tide.pc}&tide_hc=${spot.tide.hc}` : '');
         return `<a class="fav-chip" href="${href}">★ ${spot.name}</a>`;
       }).join('') + '</div>';
     }
@@ -444,7 +444,7 @@
             </div>
             <button class="popup-fav-btn" data-name="${spot.name}">${fav ? '★' : '☆'}</button>
           </div>
-          <a class="popup-btn" href="index.html?lat=${spot.lat}&lon=${spot.lon}&name=${encodeURIComponent(spot.name)}&coast=${spot.coast}">コンディションを見る</a>
+          <a class="popup-btn" href="index.html?lat=${spot.lat}&lon=${spot.lon}&name=${encodeURIComponent(spot.name)}&coast=${spot.coast}${spot.tide ? `&tide_pc=${spot.tide.pc}&tide_hc=${spot.tide.hc}` : ''}">コンディションを見る</a>
         `;
       });
     });

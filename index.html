@@ -512,6 +512,8 @@
     const LON = parseFloat(params.get('lon')) || DEFAULT_CONFIG.lon;
     const SPOT_NAME = params.get('name') || DEFAULT_CONFIG.name;
     const COAST_BEARING = parseInt(params.get('coast')) || DEFAULT_CONFIG.coastAngle;
+    const TIDE_PC = parseInt(params.get('tide_pc')) || 14;
+    const TIDE_HC = parseInt(params.get('tide_hc')) || 19;
 
     const FAV_KEY = 'nami-kaze-favorites';
     const FAV_MAX = 3;
@@ -572,7 +574,7 @@
 
     function buildTideUrl() {
       const now = new Date();
-      return `https://tide736.net/api/get_tide.php?pc=14&hc=19&yr=${now.getFullYear()}&mn=${now.getMonth()+1}&dy=${now.getDate()}&rg=week`;
+      return `https://tide736.net/api/get_tide.php?pc=${TIDE_PC}&hc=${TIDE_HC}&yr=${now.getFullYear()}&mn=${now.getMonth()+1}&dy=${now.getDate()}&rg=week`;
     }
 
     const WEATHER_CODES = {

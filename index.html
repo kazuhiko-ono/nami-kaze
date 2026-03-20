@@ -503,6 +503,7 @@
   </div>
 
   <script src="config.js"></script>
+  <script src="spots.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script>
@@ -512,8 +513,9 @@
     const LON = parseFloat(params.get('lon')) || DEFAULT_CONFIG.lon;
     const SPOT_NAME = params.get('name') || DEFAULT_CONFIG.name;
     const COAST_BEARING = parseInt(params.get('coast')) || DEFAULT_CONFIG.coastAngle;
-    const TIDE_PC = parseInt(params.get('tide_pc')) || 14;
-    const TIDE_HC = parseInt(params.get('tide_hc')) || 19;
+    const _spotMatch = typeof SPOTS !== 'undefined' && SPOTS.find(s => s.name === SPOT_NAME);
+    const TIDE_PC = parseInt(params.get('tide_pc')) || (_spotMatch && _spotMatch.tide ? _spotMatch.tide.pc : 14);
+    const TIDE_HC = parseInt(params.get('tide_hc')) || (_spotMatch && _spotMatch.tide ? _spotMatch.tide.hc : 19);
 
     const FAV_KEY = 'nami-kaze-favorites';
     const FAV_MAX = 3;

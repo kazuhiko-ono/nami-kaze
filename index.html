@@ -187,6 +187,11 @@
     }
 
     /* --- Wind --- */
+    .amedas-source {
+      font-size: 11px;
+      color: #4ade80;
+      margin-bottom: 8px;
+    }
     .wind-section {
       display: flex;
       align-items: center;
@@ -388,6 +393,26 @@
       line-height: 14px;
     }
 
+    /* --- Model Legend --- */
+    .model-legend {
+      display: inline-flex;
+      gap: 8px;
+      margin-left: 8px;
+      font-weight: 400;
+      color: #aac;
+    }
+    .model-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .model-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
     /* --- Daily --- */
     .daily-section { margin-top: 4px; }
     .daily-row {
@@ -493,7 +518,7 @@
     </div>
 
     <div id="updateTime"></div>
-    <div class="data-credit">データ: Open-Meteo</div>
+    <div class="data-credit">データ: Open-Meteo（GFS / ICON / GEM / ECMWF）</div>
 
     <p id="status">読み込み中...</p>
 
@@ -573,6 +598,56 @@
 
     const WEATHER_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,precipitation_probability_max&forecast_hours=120&forecast_days=7&wind_speed_unit=ms&timezone=Asia%2FTokyo`;
     const MARINE_URL = `https://marine-api.open-meteo.com/v1/marine?latitude=${LAT}&longitude=${LON}&current=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period&hourly=wave_height&forecast_hours=120&timezone=Asia%2FTokyo`;
+
+    /* --- Multi-model forecast --- */
+    const FORECAST_MODELS = [
+      { id: 'gfs_seamless', name: 'GFS', color: '#e74c3c' },
+      { id: 'icon_seamless', name: 'ICON', color: '#3498db' },
+      { id: 'gem_seamless', name: 'GEM', color: '#2ecc71' },
+      { id: 'ecmwf_ifs025', name: 'ECMWF', color: '#f39c12' },
+    ];
+    const MODELS_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=wind_speed_10m&models=${FORECAST_MODELS.map(m => m.id).join(',')}&forecast_hours=120&wind_speed_unit=ms&timezone=Asia%2FTokyo`;
+
+    /* --- AMEDAS (実測データ) --- */
+    const AMEDAS_BASE = 'https://www.jma.go.jp/bosai/amedas';
+    let amedasStationTable = null;
+
+    function amedasDirToDeg(code) {
+      if (code === 0) return null;
+      return (code - 1) * 22.5;
+    }
+
+    async function fetchAmedasData() {
+      const timeRes = await fetch(`${AMEDAS_BASE}/data/latest_time.txt`);
+      if (!timeRes.ok) throw new Error('AMEDAS time fetch failed');
+      const timeStr = (await timeRes.text()).trim();
+      const ts = timeStr.slice(0,4) + timeStr.slice(5,7) + timeStr.slice(8,10) + timeStr.slice(11,13) + timeStr.slice(14,16) + timeStr.slice(17,19);
+
+      const fetches = [fetch(`${AMEDAS_BASE}/data/map/${ts}.json`)];
+      if (!amedasStationTable) fetches.push(fetch(`${AMEDAS_BASE}/const/amedastable.json`));
+      const results = await Promise.all(fetches);
+      if (!results[0].ok) throw new Error('AMEDAS map fetch failed');
+      const mapData = await results[0].json();
+      if (results[1]) {
+        if (!results[1].ok) throw new Error('AMEDAS table fetch failed');
+        amedasStationTable = await results[1].json();
+      }
+
+      let nearest = null;
+      let minDist = Infinity;
+      for (const [sid, s] of Object.entries(amedasStationTable)) {
+        if (!mapData[sid] || mapData[sid].wind == null) continue;
+        const slat = s.lat[0] + s.lat[1] / 60;
+        const slon = s.lon[0] + s.lon[1] / 60;
+        const dist = (slat - LAT) ** 2 + (slon - LON) ** 2;
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = { id: sid, name: s.kjName, data: mapData[sid] };
+        }
+      }
+      if (!nearest) throw new Error('No nearby AMEDAS station');
+      return { station: nearest, time: timeStr };
+    }
 
     function buildTideUrl() {
       const now = new Date();
@@ -665,15 +740,42 @@
       </div>`;
     }
 
-    function renderWeather(data) {
+    function renderWeather(data, amedasData) {
       const c = data.current;
       const units = data.current_units;
       const weatherText = WEATHER_CODES[c.weather_code] || `コード: ${c.weather_code}`;
-      const windDirText = windDirectionToText(c.wind_direction_10m);
-      const windType = classifyWind(c.wind_direction_10m, c.wind_speed_10m);
+
+      // アメダス実測値があれば優先、なければOpen-Meteo
+      const ad = amedasData ? amedasData.station.data : null;
+      const windSpeed = ad ? ad.wind[0] : c.wind_speed_10m;
+      const windDirDeg = ad ? amedasDirToDeg(ad.windDirection[0]) : c.wind_direction_10m;
+      const isCalm = windDirDeg === null;
+      const temp = ad && ad.temp ? ad.temp[0] : c.temperature_2m;
+      const humidity = ad && ad.humidity ? ad.humidity[0] : null;
+
+      const windDirText = isCalm ? '静穏' : windDirectionToText(windDirDeg);
+      const windType = isCalm ? 'calm' : classifyWind(windDirDeg, windSpeed);
       const windTypeLabel = WIND_TYPE_LABELS[windType];
+      const arrowDeg = isCalm ? 0 : windDirDeg + 180;
+      const arrowStyle = isCalm
+        ? 'visibility:hidden'
+        : `transform: rotate(${arrowDeg}deg); --arrow-color: ${windSpeedColor(windSpeed)}`;
+
+      const sourceLabel = ad
+        ? `<div class="amedas-source">実測: ${amedasData.station.name}（アメダス）</div>`
+        : '';
+
+      const windDirDisplay = isCalm
+        ? '風向 <span class="val">静穏</span>'
+        : `風向 ${windDirText}（<span class="val">${windDirDeg}°</span>）<span class="wind-type-label">${windTypeLabel}</span>`;
+
+      const tempLine = humidity != null
+        ? `気温 <span class="val">${temp}°C</span> / 体感 <span class="val">${c.apparent_temperature}${units.apparent_temperature}</span> / 湿度 <span class="val">${humidity}%</span>`
+        : `気温 <span class="val">${temp}°C</span> / 体感 <span class="val">${c.apparent_temperature}${units.apparent_temperature}</span>`;
+
       return `<div class="card">
         <h2>風・気象</h2>
+        ${sourceLabel}
         <div id="weather-table">
           <div class="wind-section">
             <div class="compass">
@@ -683,13 +785,13 @@
                 <span class="dir-e">E</span>
                 <span class="dir-w">W</span>
               </div>
-              <div class="wind-arrow" style="transform: rotate(${c.wind_direction_10m + 180}deg); --arrow-color: ${windSpeedColor(c.wind_speed_10m)}"></div>
+              <div class="wind-arrow" style="${arrowStyle}"></div>
             </div>
             <div class="wind-info">
               <div>${weatherText}</div>
-              <div>気温 <span class="val">${c.temperature_2m}${units.temperature_2m}</span> / 体感 <span class="val">${c.apparent_temperature}${units.apparent_temperature}</span></div>
-              <div>風速 <span class="val" style="color:${windSpeedColor(c.wind_speed_10m)}">${c.wind_speed_10m} m/s</span>（${msToKt(c.wind_speed_10m)} kt）</div>
-              <div>風向 ${windDirText}（<span class="val">${c.wind_direction_10m}${units.wind_direction_10m}</span>）<span class="wind-type-label">${windTypeLabel}</span></div>
+              <div>${tempLine}</div>
+              <div>風速 <span class="val" style="color:${windSpeedColor(windSpeed)}">${windSpeed} m/s</span>（${msToKt(windSpeed)} kt）</div>
+              <div>${windDirDisplay}</div>
               <div>突風 <span class="val">${c.wind_gusts_10m} m/s</span>（${msToKt(c.wind_gusts_10m)} kt）</div>
             </div>
           </div>
@@ -775,7 +877,8 @@
       const hasTide = !!tideData;
       let chartSections = '';
       if (hasWind) {
-        chartSections += '<div class="timeline-chart-section"><span class="timeline-chart-label">風速 m/s</span><canvas id="windChart"></canvas></div>';
+        const legendItems = FORECAST_MODELS.map(m => `<span class="model-legend-item"><span class="model-dot" style="background:${m.color}"></span>${m.name}</span>`).join('');
+        chartSections += `<div class="timeline-chart-section"><span class="timeline-chart-label">風速 m/s <span class="model-legend">${legendItems}</span></span><canvas id="windChart"></canvas></div>`;
       }
       if (hasMarine) {
         chartSections += '<div class="timeline-chart-section"><span class="timeline-chart-label">波高 m</span><canvas id="waveChart"></canvas></div>';
@@ -832,43 +935,62 @@
     /* --- Wind Chart --- */
     let windChart = null;
 
-    function initWindChart(weatherData, totalWidth, firstDispIdx, slotSpacing, firstCenter) {
+    function initWindChart(weatherData, modelsData, totalWidth, firstDispIdx, slotSpacing, firstCenter) {
       if (!weatherData || !weatherData.hourly) return;
-      const hourly = weatherData.hourly;
-      const speeds = hourly.wind_speed_10m;
 
       const canvas = document.getElementById('windChart');
       if (!canvas) return;
       if (windChart) { windChart.destroy(); windChart = null; }
 
-      const chartHeight = 120;
+      const chartHeight = 150;
       canvas.width = totalWidth;
       canvas.height = chartHeight;
       canvas.style.width = totalWidth + 'px';
       canvas.style.height = chartHeight + 'px';
 
-      const data = speeds.map((s, i) => ({
-        x: firstCenter + ((i - firstDispIdx) / 2) * slotSpacing,
-        y: s
-      }));
+      const datasets = [];
 
-      windChart = new Chart(canvas, {
-        type: 'line',
-        data: {
-          datasets: [{
-            label: '風速 (m/s)',
+      if (modelsData && modelsData.hourly) {
+        const mh = modelsData.hourly;
+        FORECAST_MODELS.forEach(model => {
+          const key = `wind_speed_10m_${model.id}`;
+          const speeds = mh[key];
+          if (!speeds) return;
+          const data = speeds.map((s, i) => {
+            if (s == null) return null;
+            return { x: firstCenter + ((i - firstDispIdx) / 2) * slotSpacing, y: s };
+          }).filter(Boolean);
+          datasets.push({
+            label: model.name,
             data: data,
-            borderColor: '#7ec8e3',
-            backgroundColor: 'rgba(126,200,227,0.1)',
-            fill: true,
+            borderColor: model.color,
+            backgroundColor: 'transparent',
+            fill: false,
             tension: 0.3,
             pointRadius: 0,
             borderWidth: 2,
-            segment: {
-              borderColor: ctx => windSpeedColor(ctx.p1.parsed.y),
-            },
-          }]
-        },
+          });
+        });
+      }
+
+      if (datasets.length === 0) {
+        const speeds = weatherData.hourly.wind_speed_10m;
+        datasets.push({
+          label: '風速',
+          data: speeds.map((s, i) => ({ x: firstCenter + ((i - firstDispIdx) / 2) * slotSpacing, y: s })),
+          borderColor: '#7ec8e3',
+          backgroundColor: 'rgba(126,200,227,0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2,
+          segment: { borderColor: ctx => windSpeedColor(ctx.p1.parsed.y) },
+        });
+      }
+
+      windChart = new Chart(canvas, {
+        type: 'line',
+        data: { datasets },
         options: {
           responsive: false,
           maintainAspectRatio: false,
@@ -1095,7 +1217,7 @@
     }
 
     /* --- Timeline Layout --- */
-    function initTimelineLayout(weatherData, marineData, tideData) {
+    function initTimelineLayout(weatherData, marineData, tideData, modelsData) {
       const hourlyEl = document.getElementById('timelineHourly');
       const innerEl = document.getElementById('timelineInner');
       const syncEl = document.getElementById('timelineSync');
@@ -1170,7 +1292,7 @@
       const slotSpacing = numItems > 1 ? (lastCenter - firstCenter) / (numItems - 1) : 74;
 
       if (weatherData && weatherData.hourly) {
-        initWindChart(weatherData, totalWidth, firstDispIdx, slotSpacing, firstCenter);
+        initWindChart(weatherData, modelsData, totalWidth, firstDispIdx, slotSpacing, firstCenter);
       }
       if (marineData && marineData.hourly) {
         initWaveChart(marineData, totalWidth, firstDispIdx, slotSpacing, firstCenter);
@@ -1244,6 +1366,11 @@
       if (!res.ok) throw new Error(`Marine API HTTP ${res.status}`);
       return await res.json();
     }
+    async function fetchModelsData() {
+      const res = await fetch(MODELS_URL);
+      if (!res.ok) throw new Error(`Models API HTTP ${res.status}`);
+      return await res.json();
+    }
 
     async function fetchAll() {
       const statusEl = document.getElementById('status');
@@ -1253,18 +1380,22 @@
       statusEl.textContent = '読み込み中...';
       resultEl.innerHTML = '<div class="loading-text">読み込み中...</div>';
 
-      const [weatherResult, marineResult, tideResult] = await Promise.allSettled([
+      const [weatherResult, marineResult, tideResult, modelsResult, amedasResult] = await Promise.allSettled([
         fetchWeatherData(),
         fetchMarineData(),
-        fetchTideData()
+        fetchTideData(),
+        fetchModelsData(),
+        fetchAmedasData()
       ]);
+
+      const amedas = amedasResult.status === 'fulfilled' ? amedasResult.value : null;
 
       let conditionHtml = '';
       let html = '';
       const errors = [];
 
       if (weatherResult.status === 'fulfilled') {
-        html += renderWeather(weatherResult.value);
+        html += renderWeather(weatherResult.value, amedas);
       } else {
         html += '<div class="card"><h2>風・気象</h2><p class="error-msg">風データを取得できませんでした。</p></div>';
         errors.push('風データ');
@@ -1280,7 +1411,14 @@
       if (weatherResult.status === 'fulfilled' && marineResult.status === 'fulfilled') {
         const w = weatherResult.value.current;
         const m = marineResult.value.current;
-        conditionHtml = renderCondition(w.wind_speed_10m, w.wind_gusts_10m, m.wave_height, w.wind_direction_10m);
+        // アメダス実測値があれば現況判定に使用
+        let ws = w.wind_speed_10m, wDir = w.wind_direction_10m;
+        if (amedas) {
+          ws = amedas.station.data.wind[0];
+          const dirDeg = amedasDirToDeg(amedas.station.data.windDirection[0]);
+          wDir = dirDeg !== null ? dirDeg : 0;
+        }
+        conditionHtml = renderCondition(ws, w.wind_gusts_10m, m.wave_height, wDir);
       }
 
       const timelineHtml = renderTimeline(
@@ -1299,13 +1437,24 @@
         initTimelineLayout(
           weatherResult.value,
           marineResult.status === 'fulfilled' ? marineResult.value : null,
-          tideResult.status === 'fulfilled' ? tideResult.value : null
+          tideResult.status === 'fulfilled' ? tideResult.value : null,
+          modelsResult.status === 'fulfilled' ? modelsResult.value : null
         );
-        const w = weatherResult.value.current;
+        // 風マップもアメダス実測値を優先
+        let mapDir, mapSpeed;
+        if (amedas) {
+          const dirDeg = amedasDirToDeg(amedas.station.data.windDirection[0]);
+          mapDir = dirDeg !== null ? dirDeg : 0;
+          mapSpeed = amedas.station.data.wind[0];
+        } else {
+          const w = weatherResult.value.current;
+          mapDir = w.wind_direction_10m;
+          mapSpeed = w.wind_speed_10m;
+        }
         windMarkers = [];
         windMap = null;
         initWindMap();
-        updateWindMarkers(w.wind_direction_10m, w.wind_speed_10m);
+        updateWindMarkers(mapDir, mapSpeed);
       }
 
       if (errors.length === 0) {

@@ -536,6 +536,21 @@
       font-size: 14px;
       flex-shrink: 0;
     }
+    #lighthouse-map {
+      height: 300px;
+      border-radius: 8px;
+      margin-top: 8px;
+      z-index: 0;
+    }
+    .lh-popup-name { font-weight: 700; font-size: 13px; }
+    .lh-popup-wind { font-family: 'JetBrains Mono', monospace; font-size: 13px; margin-top: 4px; }
+    .lh-popup-extra { font-size: 11px; color: #7aa2c4; margin-top: 2px; }
+    .spot-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #e74c3c;
+      white-space: nowrap;
+    }
 
     /* --- Wind Map --- */
     #wind-map {
@@ -790,28 +805,78 @@
       return await res.json();
     }
 
+    const WIND_DIR_TO_DEG = {
+      '北': 0, '北北東': 22.5, '北東': 45, '東北東': 67.5,
+      '東': 90, '東南東': 112.5, '南東': 135, '南南東': 157.5,
+      '南': 180, '南南西': 202.5, '南西': 225, '西南西': 247.5,
+      '西': 270, '西北西': 292.5, '北西': 315, '北北西': 337.5,
+    };
+
     function renderLighthouseCard(micsData) {
       if (!micsData || !micsData.stations || micsData.stations.length === 0) return '';
-      const rows = micsData.stations.map(s => {
-        const hasWind = s.windSpeed !== null;
-        const windText = hasWind
-          ? `<span style="color:${windSpeedColor(s.windSpeed)}">${s.windSpeed}m/s</span>`
-          : '<span style="color:#7aa2c4">--</span>';
-        const dirText = s.windDir || (s.windSpeed === 0 ? '静穏' : '--');
-        const pressureText = s.pressure ? `${s.pressure}hPa` : '';
-        const waveText = s.waveHeight !== null ? `${s.waveHeight}m` : '';
-        const extra = [pressureText, waveText].filter(Boolean).join(' / ');
-        return `<div class="lighthouse-row">
-          <span class="lighthouse-icon">🗼</span>
-          <span class="lighthouse-name">${s.name}</span>
-          <span class="lighthouse-wind">${windText} <span style="font-weight:400;font-size:11px;color:#7aa2c4">${dirText}</span></span>
-          ${extra ? `<span class="lighthouse-pressure">${extra}</span>` : ''}
-        </div>`;
-      }).join('');
       return `<div class="card">
         <h2>灯台実況（${micsData.kankuName || ''}）</h2>
-        <div class="lighthouse-stations">${rows}</div>
+        <div id="lighthouse-map"></div>
       </div>`;
+    }
+
+    let lighthouseMap = null;
+    function initLighthouseMap(micsData) {
+      if (!micsData || !micsData.stations) return;
+      const el = document.getElementById('lighthouse-map');
+      if (!el) return;
+      if (lighthouseMap) { lighthouseMap.remove(); lighthouseMap = null; }
+
+      lighthouseMap = L.map('lighthouse-map', { zoomControl: false, attributionControl: true });
+      L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>'
+      }).addTo(lighthouseMap);
+
+      const bounds = L.latLngBounds([[LAT, LON]]);
+
+      // 現在地マーカー
+      const spotIcon = L.divIcon({
+        className: '',
+        html: `<div style="display:flex;flex-direction:column;align-items:center"><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#e74c3c" stroke="#fff" stroke-width="2"/></svg><span class="spot-label">${SPOT_NAME}</span></div>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      });
+      L.marker([LAT, LON], { icon: spotIcon }).addTo(lighthouseMap);
+
+      micsData.stations.forEach(s => {
+        if (s.lat == null || s.lon == null) return;
+        bounds.extend([s.lat, s.lon]);
+
+        const dirDeg = s.windDir ? WIND_DIR_TO_DEG[s.windDir] : null;
+        const hasWind = s.windSpeed !== null && s.windSpeed > 0 && dirDeg !== null;
+        const color = s.windSpeed !== null ? windSpeedColor(s.windSpeed) : '#7aa2c4';
+
+        let markerHtml;
+        if (hasWind) {
+          const rot = dirDeg + 180;
+          markerHtml = `<svg width="28" height="28" viewBox="0 0 28 28" style="transform:rotate(${rot}deg);filter:drop-shadow(0 1px 2px rgba(0,0,0,0.7))"><polygon points="14,2 8,24 14,18 20,24" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
+        } else {
+          markerHtml = `<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="${color}" stroke="#fff" stroke-width="2" opacity="0.8"/></svg>`;
+        }
+
+        const icon = L.divIcon({
+          className: 'wind-map-arrow',
+          html: markerHtml,
+          iconSize: hasWind ? [28, 28] : [16, 16],
+          iconAnchor: hasWind ? [14, 14] : [8, 8],
+          popupAnchor: [0, hasWind ? -14 : -8]
+        });
+
+        const windText = s.windSpeed !== null ? `${s.windSpeed}m/s ${s.windDir || '静穏'}` : '欠測';
+        const extras = [s.pressure ? `${s.pressure}hPa` : '', s.waveHeight !== null ? `波高${s.waveHeight}m` : ''].filter(Boolean).join(' / ');
+
+        L.marker([s.lat, s.lon], { icon })
+          .bindPopup(`<div class="lh-popup-name">${s.name}</div><div class="lh-popup-wind">${windText}</div>${extras ? `<div class="lh-popup-extra">${extras}</div>` : ''}`)
+          .addTo(lighthouseMap);
+      });
+
+      lighthouseMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 8 });
     }
 
     function buildTideUrl() {
@@ -1651,6 +1716,11 @@
         windMap = null;
         initWindMap();
         updateWindMarkers(mapDir, mapSpeed);
+      }
+
+      // 灯台マップ初期化（DOMに #lighthouse-map が存在する場合）
+      if (mics) {
+        initLighthouseMap(mics);
       }
 
       if (errors.length === 0) {

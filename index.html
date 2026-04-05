@@ -440,6 +440,103 @@
     }
     .daily-row .d-rain { color: #7aa2c4; }
 
+    /* --- Nearby AMEDAS --- */
+    .nearby-stations {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .nearby-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: rgba(0,0,0,0.15);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .nearby-name {
+      min-width: 60px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .nearby-dist {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #7aa2c4;
+      min-width: 42px;
+      text-align: right;
+    }
+    .nearby-wind {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+    }
+    .nearby-arrow {
+      display: inline-block;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .nearby-zone {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .nearby-zone.coastal {
+      background: rgba(52,152,219,0.2);
+      color: #3498db;
+    }
+    .nearby-zone.inland {
+      background: rgba(46,204,113,0.2);
+      color: #2ecc71;
+    }
+
+    /* --- Lighthouse --- */
+    .lighthouse-stations {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .lighthouse-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: rgba(0,0,0,0.15);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .lighthouse-name {
+      min-width: 90px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lighthouse-wind {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+    }
+    .lighthouse-pressure {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #7aa2c4;
+      white-space: nowrap;
+    }
+    .lighthouse-icon {
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
     /* --- Wind Map --- */
     #wind-map {
       height: 250px;
@@ -541,6 +638,7 @@
     const _spotMatch = typeof SPOTS !== 'undefined' && SPOTS.find(s => s.name === SPOT_NAME);
     const TIDE_PC = parseInt(params.get('tide_pc')) || (_spotMatch && _spotMatch.tide ? _spotMatch.tide.pc : 14);
     const TIDE_HC = parseInt(params.get('tide_hc')) || (_spotMatch && _spotMatch.tide ? _spotMatch.tide.hc : 19);
+    const SPOT_KANKU = (_spotMatch && _spotMatch.kanku) || '03kanku';
 
     const FAV_KEY = 'nami-kaze-favorites';
     const FAV_MAX = 3;
@@ -617,6 +715,29 @@
       return (code - 1) * 22.5;
     }
 
+    function haversineKm(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function bearingDeg(lat1, lon1, lat2, lon2) {
+      const toRad = d => d * Math.PI / 180;
+      const dLon = toRad(lon2 - lon1);
+      const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+      const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+      return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    }
+
+    function classifyCoastInland(bearing, coastAngle) {
+      const inlandDir = (coastAngle + 180) % 360;
+      let diff = Math.abs(bearing - inlandDir);
+      if (diff > 180) diff = 360 - diff;
+      return diff <= 90 ? '内陸' : '沿岸';
+    }
+
     async function fetchAmedasData() {
       const timeRes = await fetch(`${AMEDAS_BASE}/data/latest_time.txt`);
       if (!timeRes.ok) throw new Error('AMEDAS time fetch failed');
@@ -635,18 +756,62 @@
 
       let nearest = null;
       let minDist = Infinity;
+      const candidates = [];
       for (const [sid, s] of Object.entries(amedasStationTable)) {
         if (!mapData[sid] || mapData[sid].wind == null) continue;
         const slat = s.lat[0] + s.lat[1] / 60;
         const slon = s.lon[0] + s.lon[1] / 60;
-        const dist = (slat - LAT) ** 2 + (slon - LON) ** 2;
-        if (dist < minDist) {
-          minDist = dist;
+        const distSq = (slat - LAT) ** 2 + (slon - LON) ** 2;
+        if (distSq < minDist) {
+          minDist = distSq;
           nearest = { id: sid, name: s.kjName, data: mapData[sid] };
         }
+        const distKm = haversineKm(LAT, LON, slat, slon);
+        if (distKm <= 40) {
+          const brg = bearingDeg(LAT, LON, slat, slon);
+          const zone = classifyCoastInland(brg, COAST_BEARING);
+          candidates.push({ id: sid, name: s.kjName, data: mapData[sid], distKm, bearing: brg, zone });
+        }
       }
+
+      candidates.sort((a, b) => a.distKm - b.distKm);
+      const coastal = candidates.filter(c => c.zone === '沿岸').slice(0, 2);
+      const inland = candidates.filter(c => c.zone === '内陸').slice(0, 2);
+      const nearby = [...coastal, ...inland].sort((a, b) => a.distKm - b.distKm);
+
       if (!nearest) throw new Error('No nearby AMEDAS station');
-      return { station: nearest, time: timeStr };
+      return { station: nearest, nearby, time: timeStr };
+    }
+
+    /* --- MICS 灯台データ --- */
+    async function fetchMicsData() {
+      const res = await fetch(`/api/mics/${SPOT_KANKU}`);
+      if (!res.ok) throw new Error(`MICS API HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    function renderLighthouseCard(micsData) {
+      if (!micsData || !micsData.stations || micsData.stations.length === 0) return '';
+      const rows = micsData.stations.map(s => {
+        const hasWind = s.windSpeed !== null;
+        const windText = hasWind
+          ? `<span style="color:${windSpeedColor(s.windSpeed)}">${s.windSpeed}m/s</span>`
+          : '<span style="color:#7aa2c4">--</span>';
+        const dirText = s.windDir || (s.windSpeed === 0 ? '静穏' : '--');
+        const pressureText = s.pressure ? `${s.pressure}hPa` : '';
+        const waveText = s.waveHeight !== null ? `${s.waveHeight}m` : '';
+        const extra = [pressureText, waveText].filter(Boolean).join(' / ');
+        return `<div class="lighthouse-row">
+          <span class="lighthouse-icon">🗼</span>
+          <span class="lighthouse-name">${s.name}</span>
+          <span class="lighthouse-wind">${windText} <span style="font-weight:400;font-size:11px;color:#7aa2c4">${dirText}</span></span>
+          ${extra ? `<span class="lighthouse-pressure">${extra}</span>` : ''}
+        </div>`;
+      }).join('');
+      return `<div class="card">
+        <h2>灯台実況（${micsData.kankuName || ''}）</h2>
+        <div class="lighthouse-stations">${rows}</div>
+      </div>`;
     }
 
     function buildTideUrl() {
@@ -724,6 +889,33 @@
     const ACTIVITY_LABELS = { active: '◎', marginal: '○', inactive: '△' };
 
     /* --- Render functions --- */
+    function renderNearbyStations(amedasData) {
+      if (!amedasData || !amedasData.nearby || amedasData.nearby.length === 0) return '';
+      const rows = amedasData.nearby.map(s => {
+        const d = s.data;
+        const ws = d.wind[0];
+        const dirCode = d.windDirection[0];
+        const dirDeg = amedasDirToDeg(dirCode);
+        const isCalm = dirDeg === null;
+        const dirText = isCalm ? '静穏' : windDirectionToText(dirDeg);
+        const arrowDeg = isCalm ? 0 : dirDeg + 180;
+        const arrowHtml = isCalm
+          ? '<span style="color:#7aa2c4;font-size:12px">--</span>'
+          : `<span class="nearby-arrow" style="transform:rotate(${arrowDeg}deg);color:${windSpeedColor(ws)}">↑</span>`;
+        const zoneCls = s.zone === '沿岸' ? 'coastal' : 'inland';
+        return `<div class="nearby-row">
+          <span class="nearby-zone ${zoneCls}">${s.zone}</span>
+          <span class="nearby-name">${s.name}</span>
+          <span class="nearby-dist">${s.distKm.toFixed(0)}km</span>
+          <span class="nearby-wind">${arrowHtml} <span style="color:${windSpeedColor(ws)}">${ws}m/s</span> <span style="font-weight:400;font-size:11px;color:#7aa2c4">${dirText}</span></span>
+        </div>`;
+      }).join('');
+      return `<div class="card">
+        <h2>周辺アメダス（海陸風比較）</h2>
+        <div class="nearby-stations">${rows}</div>
+      </div>`;
+    }
+
     function renderCondition(ws, wg, wh, windDir) {
       const windType = classifyWind(windDir, ws);
       const windTypeLabel = WIND_TYPE_LABELS[windType];
@@ -1380,15 +1572,17 @@
       statusEl.textContent = '読み込み中...';
       resultEl.innerHTML = '<div class="loading-text">読み込み中...</div>';
 
-      const [weatherResult, marineResult, tideResult, modelsResult, amedasResult] = await Promise.allSettled([
+      const [weatherResult, marineResult, tideResult, modelsResult, amedasResult, micsResult] = await Promise.allSettled([
         fetchWeatherData(),
         fetchMarineData(),
         fetchTideData(),
         fetchModelsData(),
-        fetchAmedasData()
+        fetchAmedasData(),
+        fetchMicsData()
       ]);
 
       const amedas = amedasResult.status === 'fulfilled' ? amedasResult.value : null;
+      const mics = micsResult.status === 'fulfilled' ? micsResult.value : null;
 
       let conditionHtml = '';
       let html = '';
@@ -1396,6 +1590,8 @@
 
       if (weatherResult.status === 'fulfilled') {
         html += renderWeather(weatherResult.value, amedas);
+        html += renderNearbyStations(amedas);
+        html += renderLighthouseCard(mics);
       } else {
         html += '<div class="card"><h2>風・気象</h2><p class="error-msg">風データを取得できませんでした。</p></div>';
         errors.push('風データ');

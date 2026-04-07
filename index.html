@@ -1596,11 +1596,13 @@
       if (weatherResult.status === 'fulfilled') {
         html += renderWeather(weatherResult.value, amedas);
         html += renderNearbyStations(amedas);
-        html += renderLighthouseCard(mics);
       } else {
         html += '<div class="card"><h2>風・気象</h2><p class="error-msg">風データを取得できませんでした。</p></div>';
         errors.push('風データ');
       }
+
+      // 灯台実況（天気・波の成否に依存しない）
+      html += renderLighthouseCard(mics);
 
       if (marineResult.status === 'fulfilled') {
         html += renderMarine(marineResult.value);
